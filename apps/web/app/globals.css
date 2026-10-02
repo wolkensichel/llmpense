@@ -1,20 +1,20 @@
 @import "tailwindcss";
 
 /*
- * LLMpense design tokens. Cool ledger paper, black-blue ink, one indigo "carbon copy" accent.
+ * LLMpense design tokens. White cards on cool gray (slate in dark mode), one indigo accent.
  * Profit/loss use reserved status hues and always ship with a sign or label.
  * Client series follow a validated categorical palette order.
  */
 :root {
   color-scheme: light;
-  --bg: #f3f4f1;
-  --surface: #fcfcfb;
-  --surface-2: #eef0ec;
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-2: #eef0f3;
   --ink: #15171c;
   --ink-2: #4b4f58;
   --ink-3: #767a83;
-  --line: #e1e3de;
-  --line-strong: #c9ccc5;
+  --line: #e3e6ea;
+  --line-strong: #cfd4da;
   --accent: #2d3aa8;
   --accent-soft: #e6e8f7;
   --on-accent: #ffffff;
@@ -26,7 +26,7 @@
   --warn: #fab219;
   --warn-ink: #8a5a00;
   --cost-bar: #5a5f6b;
-  --grid: #e1e0d9;
+  --grid: #e8ebef;
   --s1: #2a78d6;
   --s2: #eb6834;
   --s3: #1baf7a;
@@ -41,17 +41,17 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #0e0f12;
-    --surface: #17181c;
-    --surface-2: #202127;
-    --ink: #f1f1ee;
+    --bg: #0f141b;
+    --surface: #161c25;
+    --surface-2: #1d2430;
+    --ink: #eef1f5;
     --ink-2: #b8bac1;
     --ink-3: #868992;
-    --line: #2a2c31;
-    --line-strong: #3b3d44;
+    --line: #263040;
+    --line-strong: #344055;
     --accent: #9aa4ff;
     --accent-soft: #23264a;
-    --on-accent: #0e0f12;
+    --on-accent: #0f141b;
     --profit: #0ca30c;
     --profit-ink: #3cc23c;
     --loss: #e06060;
@@ -60,7 +60,7 @@
     --warn: #fab219;
     --warn-ink: #fab219;
     --cost-bar: #9da1ab;
-    --grid: #2c2c2a;
+    --grid: #232b37;
     --s1: #3987e5;
     --s2: #d95926;
     --s3: #199e70;
@@ -75,17 +75,17 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0e0f12;
-  --surface: #17181c;
-  --surface-2: #202127;
-  --ink: #f1f1ee;
+  --bg: #0f141b;
+  --surface: #161c25;
+  --surface-2: #1d2430;
+  --ink: #eef1f5;
   --ink-2: #b8bac1;
   --ink-3: #868992;
-  --line: #2a2c31;
-  --line-strong: #3b3d44;
+  --line: #263040;
+  --line-strong: #344055;
   --accent: #9aa4ff;
   --accent-soft: #23264a;
-  --on-accent: #0e0f12;
+  --on-accent: #0f141b;
   --profit: #0ca30c;
   --profit-ink: #3cc23c;
   --loss: #e06060;
@@ -94,7 +94,7 @@
   --warn: #fab219;
   --warn-ink: #fab219;
   --cost-bar: #9da1ab;
-  --grid: #2c2c2a;
+  --grid: #232b37;
   --s1: #3987e5;
   --s2: #d95926;
   --s3: #199e70;
