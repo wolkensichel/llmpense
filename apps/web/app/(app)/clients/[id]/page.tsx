@@ -5,7 +5,7 @@ import { ChevronLeft, Download } from "lucide-react";
 import { getCurrentOrg } from "@/lib/org.ts";
 import { clientBreakdown, clientDaily, clientMargins, clientMonths, getClient, listProjects } from "@/lib/queries.ts";
 import { resolveRange } from "@/lib/range.ts";
-import { count, delta, pct, usd } from "@/lib/format.ts";
+import { compactNum, count, delta, pct, usd } from "@/lib/format.ts";
 import { DailyChart, type Series } from "@/components/daily-chart.tsx";
 import { Breakdown } from "@/components/breakdown.tsx";
 import { BillingBadge, ClientDot, Delta, FrozenNote, LossTag, MarginBar, MarginBarLegend, Panel } from "@/components/ui.tsx";
@@ -70,17 +70,12 @@ export default async function ClientPage({ params, searchParams }: Props) {
       </div>
 
       <section aria-label="Key figures" className="rounded-xl border border-line bg-surface p-4 lg:p-5">
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-4 lg:grid-cols-5">
-          <Fig label="Margin" value={usd(cur.marginUsd)} loss={cur.marginUsd < 0} d={<Delta value={delta(cur.marginUsd, prev.marginUsd)} />} />
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3 xl:grid-cols-6">
+          <Fig label="Spent at providers" value={usd(cur.costUsd)} d={<Delta value={delta(cur.costUsd, prev.costUsd)} good="neutral" />} />
+          <Fig label="Tokens" value={compactNum(cur.tokens)} d={<Delta value={delta(cur.tokens, prev.tokens)} good="neutral" />} />
+          <Fig label="Requests" value={count(cur.requests)} d={<Delta value={delta(cur.requests, prev.requests)} good="neutral" />} />
           <Fig
-            label="Margin %"
-            value={pct(cur.marginPct)}
-            loss={cur.marginPct !== null && cur.marginPct < 0}
-            d={<Delta value={cur.marginPct !== null && prev.marginPct !== null ? cur.marginPct - prev.marginPct : null} kind="points" />}
-          />
-          <Fig label="Provider cost" value={usd(cur.costUsd)} d={<Delta value={delta(cur.costUsd, prev.costUsd)} good="neutral" />} />
-          <Fig
-            label="Revenue"
+            label="Billed to client"
             value={usd(cur.revenueUsd)}
             d={
               cur.fixedFeeUsd > 0 ? (
@@ -90,7 +85,13 @@ export default async function ClientPage({ params, searchParams }: Props) {
               )
             }
           />
-          <Fig label="Requests" value={count(cur.requests)} d={<Delta value={delta(cur.requests, prev.requests)} good="neutral" />} />
+          <Fig label="Margin" value={usd(cur.marginUsd)} loss={cur.marginUsd < 0} d={<Delta value={delta(cur.marginUsd, prev.marginUsd)} />} />
+          <Fig
+            label="Margin %"
+            value={pct(cur.marginPct)}
+            loss={cur.marginPct !== null && cur.marginPct < 0}
+            d={<Delta value={cur.marginPct !== null && prev.marginPct !== null ? cur.marginPct - prev.marginPct : null} kind="points" />}
+          />
         </dl>
         <div className="mt-4 border-t border-line pt-4">
           <MarginBar cost={cur.costUsd} revenue={cur.revenueUsd} scale={Math.max(cur.costUsd, cur.revenueUsd)} />
@@ -100,12 +101,12 @@ export default async function ClientPage({ params, searchParams }: Props) {
         </div>
       </section>
 
-      <Panel title="Daily cost and revenue" sub="Cost stacked by project. Revenue includes each day's share of a fixed fee.">
+      <Panel title="Daily spend and billing" sub={billingLineNote(client)}>
         <DailyChart
           data={daily as never}
           series={series}
-          line={{ key: "revenue", name: "Revenue" }}
-          caption={`Daily cost by project and revenue for ${client.name}`}
+          line={client.billingMode === "absorbed" ? undefined : { key: "revenue", name: "Billed to client" }}
+          caption={`Daily spend by project and amount billed to ${client.name}`}
         />
       </Panel>
 
@@ -162,4 +163,19 @@ function Fig({ label, value, d, loss = false }: { label: string; value: string; 
       <dd>{d}</dd>
     </div>
   );
+}
+
+/** Explains the chart's billed line for the client's billing mode. */
+function billingLineNote(c: { name: string; billingMode: string; markupPct: number; fixedFeeUsd: number }): string {
+  const bars = "Bars: what each project cost you per day.";
+  switch (c.billingMode) {
+    case "markup":
+      return `${bars} Line: what ${c.name} was billed (cost + ${c.markupPct}%). The gap is your margin.`;
+    case "passthrough":
+      return `${bars} Line: what ${c.name} was billed. Billed at cost, so it sits on top of the bars.`;
+    case "fixed":
+      return `${bars} Line: each day's share of the ${usd(c.fixedFeeUsd)} monthly fixed fee. Where it sits above the bars, you keep the difference.`;
+    default:
+      return `${bars} You absorb this client's AI cost; nothing is billed.`;
+  }
 }

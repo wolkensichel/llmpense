@@ -85,7 +85,9 @@ export function DailyChart({
           ))}
           {line && (
             <li className="inline-flex items-center gap-1.5">
-              <span aria-hidden className="inline-block h-0.5 w-3.5 rounded bg-ink" />
+              <span aria-hidden className="relative inline-block h-0.5 w-4 rounded bg-ink">
+                <span className="absolute top-1/2 left-1/2 size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink" />
+              </span>
               {line.name}
             </li>
           )}
@@ -142,10 +144,11 @@ export function DailyChart({
               <Line
                 dataKey={line.key}
                 name={line.name}
-                type="monotone"
+                // One value per day: straight segments with a dot over each bar, not a smoothed trend.
+                type="linear"
                 stroke="var(--ink)"
-                strokeWidth={2}
-                dot={false}
+                strokeWidth={1.5}
+                dot={{ r: 2.5, stroke: "var(--ink)", strokeWidth: 0, fill: "var(--ink)" }}
                 activeDot={{ r: 4, stroke: "var(--surface)", strokeWidth: 2, fill: "var(--ink)" }}
                 isAnimationActive={false}
               />
