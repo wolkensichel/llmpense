@@ -5,6 +5,11 @@
 export const SESSION_COOKIE = "llmpense_session";
 export const SESSION_TTL_MS = 30 * 86_400_000;
 
+/** Login is on only when ADMIN_PASSWORD is set; an empty password opens the dashboard without one. */
+export function authEnabled(env: Record<string, string | undefined> = process.env): boolean {
+  return Boolean(env.ADMIN_PASSWORD);
+}
+
 const enc = new TextEncoder();
 
 function secret(): string {

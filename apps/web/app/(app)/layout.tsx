@@ -7,6 +7,7 @@ import { getCurrentOrg } from "@/lib/org.ts";
 import { BottomTabs, RangePicker, SideNav } from "@/components/nav.tsx";
 import { ThemeToggle } from "@/components/theme-toggle.tsx";
 import { logout } from "../login/actions.ts";
+import { authEnabled } from "@/lib/session.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -32,12 +33,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <p className="truncate px-2 text-sm font-medium">{org.name}</p>
           <div className="mt-1 flex items-center">
             <ThemeToggle />
-            <form action={logout}>
-              <button className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">
-                <LogOut size={16} strokeWidth={1.75} aria-hidden />
-                Sign out
-              </button>
-            </form>
+            {authEnabled() && (
+              <form action={logout}>
+                <button className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">
+                  <LogOut size={16} strokeWidth={1.75} aria-hidden />
+                  Sign out
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </aside>
@@ -52,11 +55,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               </div>
               <div className="flex items-center">
                 <ThemeToggle />
-                <form action={logout}>
-                  <button aria-label="Sign out" className="inline-flex size-11 items-center justify-center rounded-lg text-ink-2 hover:bg-surface-2">
-                    <LogOut size={18} strokeWidth={1.75} aria-hidden />
-                  </button>
-                </form>
+                {authEnabled() && (
+                  <form action={logout}>
+                    <button aria-label="Sign out" className="inline-flex size-11 items-center justify-center rounded-lg text-ink-2 hover:bg-surface-2">
+                      <LogOut size={18} strokeWidth={1.75} aria-hidden />
+                    </button>
+                  </form>
+                )}
               </div>
             </div>
             <Suspense>

@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { createSessionToken, SESSION_TTL_MS, verifySessionToken } from "./session.ts";
+import { authEnabled, createSessionToken, SESSION_TTL_MS, verifySessionToken } from "./session.ts";
 
 const KEY = "test-secret-at-least-16";
+
+describe("authEnabled", () => {
+  it("is on only when ADMIN_PASSWORD is non-empty", () => {
+    expect(authEnabled({ ADMIN_PASSWORD: "secret" })).toBe(true);
+    expect(authEnabled({ ADMIN_PASSWORD: "" })).toBe(false);
+    expect(authEnabled({})).toBe(false);
+  });
+});
 
 describe("session tokens", () => {
   it("verifies its own token until expiry", async () => {

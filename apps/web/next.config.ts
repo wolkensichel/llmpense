@@ -3,12 +3,16 @@ import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 
-// The monorepo keeps one `.env` at the root (DATABASE_URL, ADMIN_PASSWORD, SESSION_SECRET).
+// The monorepo keeps one `.env` at the root (DATABASE_URL, ADMIN_PASSWORD, SESSION_SECRET, DEV_ORIGINS).
 // Variables already set in the environment win. Docker/standalone passes env directly.
 try {
   process.loadEnvFile(`${root}.env`);
 } catch {
   // no root .env; rely on the process environment
+}
+
+if (!process.env.ADMIN_PASSWORD) {
+  console.warn("⚠ ADMIN_PASSWORD is empty: the dashboard opens without a login for anyone who can reach this server.");
 }
 
 const config: NextConfig = {

@@ -1,10 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE, verifySessionToken } from "./lib/session.ts";
+import { authEnabled, SESSION_COOKIE, verifySessionToken } from "./lib/session.ts";
 
 const PUBLIC = [/^\/login(\/submit)?\/?$/,/^\/api\/v1\//, /^\/api\/health\/?$/];
 
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+  if (!authEnabled()) {
+    // No password configured: there is nothing to sign in to.
+    return /^\/login/.test(pathname) ? NextResponse.redirect(new URL("/", request.url), 303) : NextResponse.next();
+  }
   if (PUBLIC.some((re) => re.test(pathname))) return NextResponse.next();
 
   if (await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value)) return NextResponse.next();

@@ -61,7 +61,7 @@ your app ──► LLMpense proxy ──► OpenAI / Anthropic / Gemini
 Requirements: Node 22+, pnpm, Docker.
 
 ```bash
-cp .env.example .env          # set ADMIN_PASSWORD and SESSION_SECRET
+cp .env.example .env          # optional: set ADMIN_PASSWORD (+ SESSION_SECRET) to require a login
 docker compose up -d --wait   # Postgres on localhost:5433
 pnpm install
 pnpm db:migrate
