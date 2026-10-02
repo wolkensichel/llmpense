@@ -19,6 +19,9 @@ const config: NextConfig = {
   transpilePackages: ["@llmpense/core", "@llmpense/db"],
   serverExternalPackages: ["postgres"],
   poweredByHeader: false,
+  // Hosts other than localhost (e.g. a phone on the LAN) that may load dev-server assets.
+  // Comma-separated in DEV_ORIGINS; without it, `next dev` only serves scripts to localhost.
+  allowedDevOrigins: (process.env.DEV_ORIGINS ?? "").split(",").map((h) => h.trim()).filter(Boolean),
   // `pnpm typecheck` (tsc 7) is the type gate; Next's built-in check expects the TS 5 JS API.
   typescript: { ignoreBuildErrors: true },
 };
