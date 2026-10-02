@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Offline · LLMpense</title>
+    <link rel="icon" href="/icon.svg" />
+    <style>
+      :root { color-scheme: light dark; --bg: #f3f4f1; --ink: #15171c; --ink-2: #4b4f58; --accent: #2d3aa8; }
+      @media (prefers-color-scheme: dark) { :root { --bg: #0e0f12; --ink: #f1f1ee; --ink-2: #b8bac1; --accent: #9aa4ff; } }
+      body { margin: 0; min-height: 100dvh; display: grid; place-items: center; background: var(--bg); color: var(--ink);
+        font: 16px/1.5 system-ui, sans-serif; padding: 16px; box-sizing: border-box; }
+      main { max-width: 32ch; }
+      h1 { font-size: 20px; margin: 16px 0 4px; }
+      p { color: var(--ink-2); margin: 0 0 16px; }
+      a { color: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/icon.svg" width="40" height="40" alt="" />
+      <h1>You're offline</h1>
+      <p>LLMpense shows live numbers, so it needs a connection to your server.</p>
+      <a href="/">Try again</a>
+    </main>
+  </body>
+</html>

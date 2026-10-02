@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#2d3aa8"/>
+  <!-- Cost bar, revenue bar and the gap between them: the margin. -->
+  <rect x="112" y="300" width="288" height="56" rx="12" fill="#ffffff" opacity="0.45"/>
+  <rect x="112" y="156" width="288" height="56" rx="12" fill="#ffffff"/>
+  <rect x="112" y="300" width="184" height="56" rx="12" fill="#ffffff"/>
+</svg>

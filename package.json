@@ -1,0 +1,24 @@
+{
+  "name": "llmpense",
+  "private": true,
+  "packageManager": "pnpm@12.8.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter ./apps/* dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "db:generate": "pnpm --filter @llmpense/db generate",
+    "db:migrate": "pnpm --filter @llmpense/db migrate",
+    "db:seed": "pnpm --filter @llmpense/db seed",
+    "prices:sync": "pnpm --filter @llmpense/core prices:sync",
+    "licenses:check": "node scripts/check-licenses.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "typescript": "^7.0.2"
+  },
+  "license": "SEE LICENSE IN LICENSE"
+}

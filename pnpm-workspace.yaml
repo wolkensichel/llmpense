@@ -1,0 +1,8 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+minimumReleaseAgeExclude:
+  - "@next/swc-win32-arm64-msvc@16.3.8"
+  - next@16.3.8
+allowBuilds:
+  esbuild: true

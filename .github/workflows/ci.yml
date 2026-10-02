@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: llmpense
+          POSTGRES_PASSWORD: llmpense
+          POSTGRES_DB: llmpense
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U llmpense"
+          --health-interval 2s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgres://llmpense:llmpense@localhost:5433/llmpense
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm licenses:check
+      - run: pnpm typecheck
+      - run: pnpm db:migrate
+      - run: pnpm db:seed
+      - run: pnpm test
+      - run: pnpm build

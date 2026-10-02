@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: llmpense
+      POSTGRES_PASSWORD: llmpense
+      POSTGRES_DB: llmpense
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U llmpense"]
+      interval: 2s
+      retries: 30
+
+volumes:
+  pgdata:
