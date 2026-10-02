@@ -1,14 +1,41 @@
 # LLMpense
 
-**Know what every client's AI usage costs you, and what you earn on it.**
+**Know what you spend on AI, in tokens and dollars, for every client and project.**
 
-LLMpense is a self-hostable cost and margin tracker for agencies and dev shops that
-build AI features for clients. Point your OpenAI, Anthropic or Gemini SDK at the
-LLMpense proxy, tag requests with a client and project, and see provider cost,
-what each client is billed, and your margin, per client, project, model and
-feature. It works on phone and desktop.
+LLMpense is a self-hostable AI spend tracker for agencies and dev shops that build
+AI features for clients. Point your OpenAI, Anthropic or Gemini SDK at the LLMpense
+proxy, tag requests with a client and project, and see what you spend per client,
+project, model and feature, plus what each client is billed for it. It works on
+phone and desktop.
 
 > Status: early MVP (v0.1). Expect breaking changes.
+
+## Screenshots
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/screenshots/desktop-overview-dark.png">
+  <img alt="Overview on desktop: total AI spend, tokens, daily cost per client" src=".github/screenshots/desktop-overview-light.png">
+</picture>
+
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/screenshots/mobile-overview-dark.png">
+  <img alt="Overview on a phone" src=".github/screenshots/mobile-overview-light.png" width="260">
+</picture>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/screenshots/mobile-chart-dark.png">
+  <img alt="Daily cost chart on a phone" src=".github/screenshots/mobile-chart-light.png" width="260">
+</picture>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/screenshots/mobile-client-dark.png">
+  <img alt="Client detail on a phone" src=".github/screenshots/mobile-client-light.png" width="260">
+</picture>
+</p>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/screenshots/desktop-client-dark.png">
+  <img alt="Client detail on desktop: spend, billing and daily cost per project" src=".github/screenshots/desktop-client-light.png">
+</picture>
 
 ## How it works
 
