@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { BILLING_MODES } from "@llmpense/core";
-import { clients } from "@llmpense/db";
+import { clients, evaluateFixedFeeLosses } from "@llmpense/db";
 import { requireAdmin } from "@/lib/auth.ts";
 import { getDb } from "@/lib/db.ts";
 
@@ -33,6 +33,7 @@ export async function updateBilling(_prev: BillingState, form: FormData): Promis
     .where(and(eq(clients.id, v.id), eq(clients.orgId, org.id)))
     .returning({ id: clients.id });
   if (updated.length === 0) return { error: "That client no longer exists." };
+  await evaluateFixedFeeLosses(getDb(), org.id);
   revalidatePath("/", "layout");
   return { ok: "Billing saved. New usage is billed with these settings." };
 }

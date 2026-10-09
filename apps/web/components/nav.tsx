@@ -14,10 +14,13 @@ const ITEMS = [
 ] as const;
 
 /** Pages whose numbers do not depend on the global range. */
-const RANGELESS = ["/budgets", "/settings"];
+const RANGELESS = ["/budgets", "/settings", "/statements"];
 
 function isActive(pathname: string, href: string) {
-  return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+  if (href === "/") return pathname === "/";
+  // Monthly statements live under the Clients tab.
+  if (href === "/clients" && (pathname === "/statements" || pathname.startsWith("/statements/"))) return true;
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 function useRangeQuery() {
@@ -92,7 +95,7 @@ export function BottomTabs({ alertCount }: { alertCount: number }) {
 export function RangePicker() {
   const pathname = usePathname();
   const params = useSearchParams();
-  if (RANGELESS.some((p) => isActive(pathname, p))) return null;
+  if (RANGELESS.some((p) => pathname === p || pathname.startsWith(`${p}/`)) || pathname.includes("/statements/")) return null;
   const current = (params.get("range") as RangeKey | null) ?? "30d";
   return (
     <nav aria-label="Date range" className="w-full lg:w-auto">

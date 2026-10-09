@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, FileText } from "lucide-react";
 import { getCurrentOrg } from "@/lib/org.ts";
 import { clientMargins, type ClientRow } from "@/lib/queries.ts";
 import { resolveRange } from "@/lib/range.ts";
@@ -23,7 +23,15 @@ export default async function ClientsPage({ searchParams }: { searchParams: SP }
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Clients" sub={`${range.label}. Sorted by margin.`} />
+      <PageHeader
+        title="Clients"
+        sub={`${range.label}. Sorted by margin.`}
+        actions={
+          <Link href="/statements" className="btn btn-quiet self-start sm:self-auto">
+            <FileText size={16} aria-hidden /> Monthly statements
+          </Link>
+        }
+      />
 
       {all.length === 0 ? (
         <EmptyState title="No clients yet">

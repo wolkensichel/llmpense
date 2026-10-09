@@ -9,6 +9,7 @@ import { EmptyState, PageHeader, Panel } from "@/components/ui.tsx";
 import { revokeApiKey } from "./actions.ts";
 import { KeyForm, PriceForm } from "./forms.tsx";
 import { IntegrationsSection } from "./integrations.tsx";
+import { BrandingSettings } from "./branding.tsx";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -240,6 +241,8 @@ const anthropic = new Anthropic({
           </div>
         </Panel>
       </section>
+
+      <BrandingSettings />
     </div>
   );
 }

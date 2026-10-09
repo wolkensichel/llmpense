@@ -1,8 +1,9 @@
-import { and, eq, gte, isNull, lt, or, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import {
   billedAmount,
   computeCost,
   findPrice,
+  fixedFeeLoss,
   loadBundledPrices,
   type PriceRow,
   type Provider,
@@ -66,7 +67,7 @@ export async function resolvePrice(db: Db, orgId: string, provider: Provider, mo
 }
 
 /**
- * Prices, attributes and stores usage events, then evaluates budgets.
+ * Prices, attributes and stores usage events, then evaluates budgets and fixed-fee losses.
  * Client/project are given as slugs; unknown slugs are auto-created so that
  * adding a header in client code is all it takes to start tracking a new client.
  * Duplicate (provider, requestId) pairs are ignored.
@@ -145,7 +146,7 @@ export async function recordEvents(db: Db, ctx: RecordContext, events: (UsageEve
     .onConflictDoNothing()
     .returning({ id: usageEvents.id });
 
-  if (ctx.source !== "seed") await evaluateBudgets(db, ctx.orgId);
+  if (ctx.source !== "seed") await evaluateAlerts(db, ctx.orgId);
   return { inserted: inserted.length };
 }
 
@@ -216,5 +217,64 @@ export async function evaluateBudgets(db: Db, orgId: string, at = new Date()) {
     fired.push(...created);
   }
   return fired;
+}
+
+/**
+ * Fires a `fixed_fee_loss` alert once per client and month when a fixed-fee client's
+ * month-to-date provider cost exceeds the part of its monthly fee earned up to `at`.
+ */
+export async function evaluateFixedFeeLosses(db: Db, orgId: string, at = new Date()) {
+  const fixedClients = await db
+    .select()
+    .from(clients)
+    .where(and(eq(clients.orgId, orgId), eq(clients.billingMode, "fixed"), isNull(clients.archivedAt)));
+  if (fixedClients.length === 0) return [];
+  const start = monthStart(at);
+  const period = start.toISOString().slice(0, 7);
+  const periodStart = start.toISOString().slice(0, 10);
+  const spend = await db
+    .select({ clientId: usageEvents.clientId, cost: sql<string>`coalesce(sum(${usageEvents.costUsd}), 0)` })
+    .from(usageEvents)
+    .where(
+      and(
+        eq(usageEvents.orgId, orgId),
+        gte(usageEvents.ts, start),
+        lt(usageEvents.ts, at),
+        inArray(
+          usageEvents.clientId,
+          fixedClients.map((c) => c.id),
+        ),
+      ),
+    )
+    .groupBy(usageEvents.clientId);
+  const costOf = new Map(spend.map((s) => [s.clientId, Number(s.cost)]));
+
+  const values: (typeof alerts.$inferInsert)[] = [];
+  for (const c of fixedClients) {
+    const loss = fixedFeeLoss({
+      terms: { billingMode: c.billingMode, markupPct: Number(c.markupPct), fixedFeeUsd: Number(c.fixedFeeUsd) },
+      period,
+      costToDateUsd: costOf.get(c.id) ?? 0,
+      asOf: at,
+    });
+    if (!loss) continue;
+    values.push({
+      orgId,
+      kind: "fixed_fee_loss",
+      clientId: c.id,
+      periodStart,
+      spendUsd: String(loss.costUsd),
+      feeUsd: String(loss.feeToDateUsd),
+    });
+  }
+  if (values.length === 0) return [];
+  return db.insert(alerts).values(values).onConflictDoNothing().returning();
+}
+
+/** Every alert rule that depends on spend: budget thresholds and fixed-fee losses. */
+export async function evaluateAlerts(db: Db, orgId: string, at = new Date()) {
+  const budgetAlerts = await evaluateBudgets(db, orgId, at);
+  const lossAlerts = await evaluateFixedFeeLosses(db, orgId, at);
+  return [...budgetAlerts, ...lossAlerts];
 }
 

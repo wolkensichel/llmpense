@@ -1,7 +1,9 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   bigserial,
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -13,7 +15,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { BILLING_MODES, PROVIDERS } from "@llmpense/core";
+import { BILLING_MODES, PROVIDERS, STATEMENT_LINE_KINDS, STATEMENT_STATUSES } from "@llmpense/core";
 
 // Money columns are numeric; drizzle returns them as strings to avoid float loss.
 const usd = (name: string) => numeric(name, { precision: 18, scale: 8 });
@@ -24,6 +26,9 @@ export const providerEnum = pgEnum("provider", PROVIDERS);
 export const billingModeEnum = pgEnum("billing_mode", BILLING_MODES);
 export const eventSourceEnum = pgEnum("event_source", ["proxy", "ingest", "seed"]);
 export const budgetScopeEnum = pgEnum("budget_scope", ["org", "client", "project"]);
+export const alertKindEnum = pgEnum("alert_kind", ["budget", "fixed_fee_loss"]);
+export const statementStatusEnum = pgEnum("statement_status", STATEMENT_STATUSES);
+export const statementLineKindEnum = pgEnum("statement_line_kind", STATEMENT_LINE_KINDS);
 
 /** Tenant. Most self-hosted installs have one. */
 export const orgs = pgTable("orgs", {
@@ -31,6 +36,14 @@ export const orgs = pgTable("orgs", {
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   currency: text("currency").notNull().default("USD"),
+  /** Agency name on client-facing statements; falls back to `name`. */
+  brandName: text("brand_name"),
+  /** Postal address or other contact lines, shown under the agency name. */
+  brandAddress: text("brand_address"),
+  /** Footer text on client-facing statements (payment details, registration numbers). */
+  brandFooter: text("brand_footer"),
+  /** http(s) URL of a logo image. */
+  brandLogoUrl: text("brand_logo_url"),
   createdAt: createdAt(),
 });
 
@@ -162,18 +175,94 @@ export const budgets = pgTable("budgets", {
   createdAt: createdAt(),
 });
 
+/**
+ * Alert history. `budget` alerts fire when spend crosses a budget threshold; `fixed_fee_loss`
+ * alerts fire when a fixed-fee client's month-to-date cost exceeds its prorated fee to date.
+ * Each fires at most once per period.
+ */
 export const alerts = pgTable(
   "alerts",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     orgId: uuid("org_id").notNull().references(() => orgs.id, { onDelete: "cascade" }),
-    budgetId: uuid("budget_id").notNull().references(() => budgets.id, { onDelete: "cascade" }),
-    threshold: integer("threshold").notNull(),
-    /** First day of the budget month, UTC, as YYYY-MM-DD. */
+    kind: alertKindEnum("kind").notNull().default("budget"),
+    budgetId: uuid("budget_id").references(() => budgets.id, { onDelete: "cascade" }),
+    /** The client a fixed_fee_loss alert is about (budget alerts use the budget's client). */
+    clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }),
+    /** Budget threshold in percent; null for fixed_fee_loss. */
+    threshold: integer("threshold"),
+    /** First day of the month, UTC, as YYYY-MM-DD. */
     periodStart: text("period_start").notNull(),
+    /** Provider cost when the alert fired. */
     spendUsd: usd("spend_usd").notNull(),
+    /** fixed_fee_loss: the part of the monthly fee earned at that moment. */
+    feeUsd: usd("fee_usd"),
     acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex("alerts_once_per_period").on(t.budgetId, t.threshold, t.periodStart)],
+  (t) => [
+    uniqueIndex("alerts_once_per_period").on(t.budgetId, t.threshold, t.periodStart),
+    uniqueIndex("alerts_fixed_fee_loss_once")
+      .on(t.clientId, t.periodStart)
+      .where(sql`${t.kind} = 'fixed_fee_loss'`),
+    check(
+      "alerts_kind_fields",
+      sql`(${t.kind} = 'budget' and ${t.budgetId} is not null and ${t.threshold} is not null) or (${t.kind} = 'fixed_fee_loss' and ${t.clientId} is not null)`,
+    ),
+  ],
+);
+
+/**
+ * One client's statement for one calendar month (UTC). Drafts are computed live and need no
+ * row; a row exists once a month has been closed. While closed, the terms, totals and line
+ * items are frozen. Reopening sets the status back to draft and clears the snapshot.
+ */
+export const statements = pgTable(
+  "statements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").notNull().references(() => orgs.id, { onDelete: "cascade" }),
+    clientId: uuid("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+    /** YYYY-MM */
+    period: text("period").notNull(),
+    status: statementStatusEnum("status").notNull().default("draft"),
+    clientName: text("client_name"),
+    billingMode: billingModeEnum("billing_mode"),
+    markupPct: numeric("markup_pct", { precision: 7, scale: 2 }),
+    /** The monthly fee in effect when the statement was closed. */
+    monthlyFeeUsd: usd("monthly_fee_usd"),
+    requests: bigint("requests", { mode: "number" }),
+    tokens: bigint("tokens", { mode: "number" }),
+    costUsd: usd("cost_usd"),
+    usageBilledUsd: usd("usage_billed_usd"),
+    /** Fixed fee billed for the month. */
+    fixedFeeUsd: usd("fixed_fee_usd"),
+    totalBilledUsd: usd("total_billed_usd"),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    reopenedAt: timestamp("reopened_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("statements_client_period").on(t.clientId, t.period), index("statements_org_period").on(t.orgId, t.period)],
+);
+
+/** Frozen line items of a closed statement: one per project and model, plus the fixed fee. */
+export const statementLines = pgTable(
+  "statement_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    statementId: uuid("statement_id").notNull().references(() => statements.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    kind: statementLineKindEnum("kind").notNull(),
+    project: text("project").notNull(),
+    provider: text("provider").notNull(),
+    model: text("model").notNull(),
+    requests: bigint("requests", { mode: "number" }).notNull().default(0),
+    inputTokens: bigint("input_tokens", { mode: "number" }).notNull().default(0),
+    outputTokens: bigint("output_tokens", { mode: "number" }).notNull().default(0),
+    cacheReadTokens: bigint("cache_read_tokens", { mode: "number" }).notNull().default(0),
+    cacheWriteTokens: bigint("cache_write_tokens", { mode: "number" }).notNull().default(0),
+    costUsd: usd("cost_usd").notNull().default("0"),
+    billedUsd: usd("billed_usd").notNull().default("0"),
+  },
+  (t) => [index("statement_lines_statement").on(t.statementId, t.position)],
 );
