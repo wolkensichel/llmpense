@@ -37,6 +37,15 @@ phone and desktop.
   <img alt="Client detail on desktop: spend, billing and daily cost per project" src=".github/screenshots/desktop-client-light.png">
 </picture>
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/screenshots/desktop-statements-dark.png">
+  <img alt="Monthly statements: what each client is billed per month, with month close" src=".github/screenshots/desktop-statements-light.png">
+</picture>
+
+<p align="center">
+  <img alt="Client-facing statement, ready to print or save as PDF" src=".github/screenshots/client-statement.png" width="520">
+</p>
+
 ## How it works
 
 ```
