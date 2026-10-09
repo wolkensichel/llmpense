@@ -8,6 +8,7 @@ import { CodeBlock } from "@/components/copy-button.tsx";
 import { EmptyState, PageHeader, Panel } from "@/components/ui.tsx";
 import { revokeApiKey } from "./actions.ts";
 import { KeyForm, PriceForm } from "./forms.tsx";
+import { IntegrationsSection } from "./integrations.tsx";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -90,6 +91,7 @@ const anthropic = new Anthropic({
       <nav aria-label="Settings sections" className="-mt-2 flex gap-1 text-sm">
         {[
           ["#connect", "Connect"],
+          ["#import", "Import"],
           ["#keys", "API keys"],
           ["#prices", "Prices"],
         ].map(([href, label]) => (
@@ -132,6 +134,10 @@ const anthropic = new Anthropic({
             <code>requestId</code> values are ignored, so retries are safe.
           </p>
         </Panel>
+      </section>
+
+      <section id="import" className="scroll-mt-28">
+        <IntegrationsSection app={app} exampleClient={exampleClient} />
       </section>
 
       <section id="keys" className="scroll-mt-28">

@@ -1,0 +1,16 @@
+{
+  "request_id": "550e8400-e29b-41d4-a716-446655440000",
+  "user_id": "user-123",
+  "request_body": "truncated-request-data",
+  "response_body": "truncated-response-data",
+  "request_response_url": "https://s3-url-containing-full-data",
+  "model": "gpt-4o-mini",
+  "provider": "openai",
+  "metadata": {
+    "cost": 0.0015,
+    "promptTokens": 10,
+    "completionTokens": 15,
+    "totalTokens": 25,
+    "latencyMs": 1200
+  }
+}

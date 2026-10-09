@@ -86,6 +86,18 @@ const openai = new OpenAI({
 
 More SDK examples (Anthropic, Python, curl): [apps/proxy/README.md](apps/proxy/README.md).
 
+## Already using a gateway?
+
+LLMpense can import usage pushed from tools you already run, without moving traffic to the proxy:
+
+- **LiteLLM proxy** via its `generic_api` logging callback
+- **Helicone** via webhooks (signature verification supported)
+- **OpenRouter** via Broadcast to a webhook destination
+
+Costs are computed from the LLMpense price table, and requests are attributed to clients and
+projects from metadata keys or `client:` / `project:` tags. Setup per tool:
+[apps/web/INTEGRATIONS.md](apps/web/INTEGRATIONS.md).
+
 ## Repository layout
 
 | Path | What |
