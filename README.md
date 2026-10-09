@@ -54,7 +54,14 @@ your app ──► LLMpense proxy ──► OpenAI / Anthropic / Gemini
 - **Authoritative cost.** Prices are merged from four public price lists, with your
   own overrides and negotiated discounts on top (see [Price data](#price-data)).
 - **Budgets and alerts** per org, client or project.
-- **Monthly CSV export** per client as the basis for invoicing.
+- **Fixed-fee loss alerts** when a fixed-fee client's month-to-date provider cost exceeds
+  the part of its fee earned so far.
+- **Monthly statements** per client and calendar month (UTC). Drafts are computed live;
+  closing a month freezes its totals and line items, and a closed month can be reopened.
+- **Client-facing statements** with your agency's name, address, logo and footer, showing
+  only what the client is billed. Print-ready, so "Save as PDF" gives a clean A4 document.
+- **Accounting CSV**: line items per statement, one row per client per month, and the
+  monthly usage export per client.
 
 ## Quick start
 

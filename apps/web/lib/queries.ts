@@ -362,20 +362,23 @@ export async function listAlerts(orgId: string, opts: { unacknowledgedOnly?: boo
   return db
     .select({
       id: alerts.id,
+      kind: alerts.kind,
       threshold: alerts.threshold,
       periodStart: alerts.periodStart,
       spendUsd: alerts.spendUsd,
+      feeUsd: alerts.feeUsd,
       acknowledgedAt: alerts.acknowledgedAt,
       createdAt: alerts.createdAt,
       scope: budgets.scope,
       amountUsd: budgets.amountUsd,
-      clientId: budgets.clientId,
+      clientId: clients.id,
       clientName: clients.name,
       projectName: p2.name,
     })
     .from(alerts)
-    .innerJoin(budgets, eq(budgets.id, alerts.budgetId))
-    .leftJoin(clients, eq(clients.id, budgets.clientId))
+    .leftJoin(budgets, eq(budgets.id, alerts.budgetId))
+    // Budget alerts name the budget's client; fixed-fee loss alerts carry their own.
+    .leftJoin(clients, eq(clients.id, sql`coalesce(${budgets.clientId}, ${alerts.clientId})`))
     .leftJoin(p2, eq(p2.id, budgets.projectId))
     .where(and(eq(alerts.orgId, orgId), opts.unacknowledgedOnly ? isNull(alerts.acknowledgedAt) : undefined))
     .orderBy(desc(alerts.createdAt), desc(alerts.threshold))

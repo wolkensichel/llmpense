@@ -1,26 +1,8 @@
-import { periodMargin, type BillingMode } from "@llmpense/core";
-import { DAY_MS, monthStartUtc } from "./range.ts";
+import { periodMargin, proratedFixedFee, type BillingMode } from "@llmpense/core";
+import { DAY_MS } from "./range.ts";
 
-/**
- * The fixed-fee rule, in one place.
- *
- * A fixed-mode client pays `monthlyFee` per calendar month. For a range [start, end)
- * each calendar month it touches contributes `monthlyFee * coveredDays / daysInThatMonth`.
- * A range covering a whole month therefore earns exactly one fee; a range covering
- * 15 of 30 days of a month earns half of it. Partial days count fractionally.
- */
-export function proratedFixedFee(monthlyFee: number, start: Date, end: Date): number {
-  if (!(monthlyFee > 0) || end <= start) return 0;
-  let total = 0;
-  for (let m = monthStartUtc(start); m < end; m = monthStartUtc(m, 1)) {
-    const next = monthStartUtc(m, 1);
-    const from = Math.max(m.getTime(), start.getTime());
-    const to = Math.min(next.getTime(), end.getTime());
-    if (to <= from) continue;
-    total += monthlyFee * ((to - from) / (next.getTime() - m.getTime()));
-  }
-  return Math.round(total * 1e8) / 1e8;
-}
+/** The fixed-fee proration rule lives in @llmpense/core so statements and alerts share it. */
+export { proratedFixedFee };
 
 export interface MarginInput {
   /** Provider cost in the range. */

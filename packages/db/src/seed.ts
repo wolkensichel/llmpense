@@ -1,11 +1,13 @@
 /**
- * Demo data: one agency org, four clients with different billing modes, 60 days of
- * traffic, budgets, and an API key printed to stdout. Safe to re-run: it wipes the demo org.
+ * Demo data: one agency org with statement branding, four clients with different billing
+ * modes, 60 days of traffic, budgets, last month's statements closed, and an API key printed
+ * to stdout. Safe to re-run: it wipes the demo org.
  */
 import { eq } from "drizzle-orm";
 import { createDb } from "./client.ts";
 import { generateApiKey } from "./keys.ts";
-import { evaluateBudgets, recordEvents } from "./record.ts";
+import { evaluateAlerts, recordEvents } from "./record.ts";
+import { closeAllDrafts } from "./statements.ts";
 import { apiKeys, budgets, clients, orgs, projects } from "./schema.ts";
 import type { UsageEventInput } from "@llmpense/core";
 
@@ -13,13 +15,22 @@ const db = createDb();
 const SLUG = "demo-agency";
 
 await db.delete(orgs).where(eq(orgs.slug, SLUG));
-const [org] = await db.insert(orgs).values({ name: "Demo Agency", slug: SLUG }).returning();
+const [org] = await db
+  .insert(orgs)
+  .values({
+    name: "Demo Agency",
+    slug: SLUG,
+    brandName: "Demo Agency",
+    brandAddress: "Example Street 1\n00100 Example City\nbilling@demo-agency.example",
+    brandFooter: "Demo Agency, a fictional company for demo purposes.\nPayment within 14 days of the statement date.",
+  })
+  .returning();
 const orgId = org!.id;
 
 const CLIENTS = [
   { slug: "acme-retail", name: "Acme Retail", billingMode: "markup", markupPct: "30", fixedFeeUsd: "0",
     projects: [["support-bot", "Support bot"], ["product-search", "Product search"]], scale: 1.0 },
-  { slug: "northwind-legal", name: "Northwind Legal", billingMode: "fixed", markupPct: "0", fixedFeeUsd: "300",
+  { slug: "northwind-legal", name: "Northwind Legal", billingMode: "fixed", markupPct: "0", fixedFeeUsd: "150",
     projects: [["contract-review", "Contract review"]], scale: 1.6 },
   { slug: "globex-health", name: "Globex Health", billingMode: "passthrough", markupPct: "0", fixedFeeUsd: "0",
     projects: [["intake-assistant", "Intake assistant"], ["summaries", "Visit summaries"]], scale: 0.7 },
@@ -95,15 +106,22 @@ await db.insert(budgets).values([
   { orgId, scope: "client", clientId: acme!.id, amountUsd: "70" },
   { orgId, scope: "client", clientId: northwind!.id, amountUsd: "150" },
 ]);
-// Evaluate last month too, so a fresh demo has alert history even on the 1st.
+// Evaluate last month too, so a fresh demo has alert history even on the 1st. With traffic
+// growing, Northwind's fixed fee covers last month but not the current one.
 const lastMonth = new Date(now);
 lastMonth.setUTCDate(0);
-await evaluateBudgets(db, orgId, lastMonth);
-await evaluateBudgets(db, orgId);
+await evaluateAlerts(db, orgId, lastMonth);
+await evaluateAlerts(db, orgId);
+
+// Last month is closed (on the 2nd, or right now on the 1st); the current month stays a draft.
+const today = new Date(now);
+const closeDay = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 2, 9));
+const lastPeriod = lastMonth.toISOString().slice(0, 7);
+const closed = await closeAllDrafts(db, orgId, lastPeriod, closeDay < today ? closeDay : today);
 
 const k = generateApiKey();
 await db.insert(apiKeys).values({ orgId, name: "Demo key", prefix: k.prefix, hash: k.hash });
 
-console.log(`seeded org ${orgId} with ${events.length} events`);
+console.log(`seeded org ${orgId} with ${events.length} events, closed ${closed} statements for ${lastPeriod}`);
 console.log(`demo API key: ${k.key}`);
 await db.$client.end();

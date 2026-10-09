@@ -54,6 +54,15 @@ export function dateTime(d: Date): string {
   });
 }
 
+/** "2026-09" -> "September 2026" */
+export function monthLabel(period: string): string {
+  return new Date(`${period}-01T00:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+}
+
+export function longDate(d: Date): string {
+  return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+}
+
 export const BILLING_LABELS = {
   markup: "Markup",
   passthrough: "Pass-through",

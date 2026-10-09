@@ -8,6 +8,13 @@
       "when": 1790870028907,
       "tag": "0000_sudden_microchip",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791543229935,
+      "tag": "0001_zippy_blacklash",
+      "breakpoints": true
     }
   ]
 }

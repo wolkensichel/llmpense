@@ -151,7 +151,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: SP 
 
         <Panel
           title="Open alerts"
-          sub="Budget thresholds crossed"
+          sub="Budget thresholds and fixed-fee losses"
           actions={
             <Link href="/budgets" className="inline-flex min-h-11 items-center text-sm font-medium text-accent hover:underline">
               Budgets

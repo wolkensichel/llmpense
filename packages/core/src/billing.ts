@@ -38,3 +38,26 @@ export function periodMargin(opts: { costUsd: number; billedUsd: number; fixedFe
     marginPct: revenue > 0 ? margin / revenue : null,
   };
 }
+
+const utcMonthStart = (d: Date, offsetMonths = 0) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + offsetMonths, 1));
+
+/**
+ * The fixed-fee rule, in one place.
+ *
+ * A fixed-mode client pays `monthlyFee` per calendar month (UTC). For a range [start, end)
+ * each calendar month it touches contributes `monthlyFee * coveredTime / lengthOfThatMonth`.
+ * A range covering a whole month therefore earns exactly one fee; a range covering
+ * 15 of 30 days of a month earns half of it. Partial days count fractionally.
+ */
+export function proratedFixedFee(monthlyFee: number, start: Date, end: Date): number {
+  if (!(monthlyFee > 0) || end <= start) return 0;
+  let total = 0;
+  for (let m = utcMonthStart(start); m < end; m = utcMonthStart(m, 1)) {
+    const next = utcMonthStart(m, 1);
+    const from = Math.max(m.getTime(), start.getTime());
+    const to = Math.min(next.getTime(), end.getTime());
+    if (to <= from) continue;
+    total += monthlyFee * ((to - from) / (next.getTime() - m.getTime()));
+  }
+  return roundUsd(total);
+}

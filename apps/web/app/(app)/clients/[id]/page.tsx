@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, Download } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { clientStatementStatuses } from "@llmpense/db";
+import { getDb } from "@/lib/db.ts";
 import { getCurrentOrg } from "@/lib/org.ts";
 import { clientBreakdown, clientDaily, clientMargins, clientMonths, getClient, listProjects } from "@/lib/queries.ts";
 import { resolveRange } from "@/lib/range.ts";
-import { compactNum, count, delta, pct, usd } from "@/lib/format.ts";
+import { compactNum, count, delta, longDate, monthLabel, pct, usd } from "@/lib/format.ts";
+import { StatusBadge } from "@/components/statement.tsx";
 import { DailyChart, type Series } from "@/components/daily-chart.tsx";
 import { Breakdown } from "@/components/breakdown.tsx";
 import { BillingBadge, ClientDot, Delta, FrozenNote, LossTag, MarginBar, MarginBarLegend, Panel } from "@/components/ui.tsx";
@@ -29,7 +32,7 @@ export default async function ClientPage({ params, searchParams }: Props) {
   const client = await getClient(org.id, id);
   if (!client) notFound();
 
-  const [margins, daily, byProject, byModel, byFeature, projects, months] = await Promise.all([
+  const [margins, daily, byProject, byModel, byFeature, projects, months, statuses] = await Promise.all([
     clientMargins(org.id, range),
     clientDaily(org.id, client, range),
     clientBreakdown(org.id, client.id, range, "project"),
@@ -37,6 +40,7 @@ export default async function ClientPage({ params, searchParams }: Props) {
     clientBreakdown(org.id, client.id, range, "feature"),
     listProjects(org.id),
     clientMonths(org.id, client.id),
+    clientStatementStatuses(getDb(), org.id, client.id),
   ]);
   const row = margins.clients.find((r) => r.client?.id === client.id)!;
   const cur = row.current;
@@ -53,6 +57,7 @@ export default async function ClientPage({ params, searchParams }: Props) {
   const now = new Date();
   const thisMonth = now.toISOString().slice(0, 7);
   const monthOptions = months.length ? months : [thisMonth];
+  const statementMonths = [...new Set([thisMonth, ...months])].sort().reverse().slice(0, 6);
 
   return (
     <div className="space-y-5 lg:space-y-6">
@@ -122,6 +127,46 @@ export default async function ClientPage({ params, searchParams }: Props) {
           <Breakdown rows={byFeature} labelHeader="Feature" />
         </Panel>
       </div>
+
+      <Panel
+        title="Monthly statements"
+        sub="What this client is billed per calendar month. Close a month to freeze it."
+        actions={
+          <Link href="/statements" className="inline-flex min-h-11 items-center text-sm font-medium text-accent hover:underline">
+            All clients
+          </Link>
+        }
+      >
+        <ul className="-my-1 divide-y divide-line">
+          {statementMonths.map((m) => {
+            const st = statuses.get(m);
+            const closed = st?.status === "closed";
+            return (
+              <li key={m}>
+                <Link
+                  href={`/clients/${client.id}/statements/${m}`}
+                  className="-mx-2 flex min-h-12 items-center justify-between gap-3 rounded-lg px-2 py-1.5 hover:bg-surface-2"
+                >
+                  <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="font-medium">{monthLabel(m)}</span>
+                    <StatusBadge status={closed ? "closed" : "draft"} />
+                    {m === thisMonth && <span className="text-[12px] text-ink-3">in progress</span>}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1 text-[13px] text-ink-2">
+                    {closed && st?.totalBilledUsd != null && (
+                      <span className="num">
+                        {usd(Number(st.totalBilledUsd))}
+                        <span className="hidden text-ink-3 sm:inline"> · closed {longDate(st.closedAt!)}</span>
+                      </span>
+                    )}
+                    <ChevronRight size={16} className="text-ink-3" aria-hidden />
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </Panel>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:gap-6">
         <Panel title="Billing">
