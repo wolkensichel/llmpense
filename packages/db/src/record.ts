@@ -107,10 +107,20 @@ export async function recordEvents(db: Db, ctx: RecordContext, events: (UsageEve
     };
     let costUsd = e.costUsd;
     let priced = true;
+    let metadata = e.metadata ?? null;
     if (costUsd === undefined) {
       const price = await resolvePrice(db, ctx.orgId, e.provider, e.model, ts);
       priced = !!price;
-      costUsd = price ? computeCost(usage, price) : 0;
+      if (price) {
+        costUsd = computeCost(usage, price);
+      } else {
+        // No price for this model: use the cost the sender reported (e.g. a gateway import),
+        // keep the event flagged as unpriced so it shows up for review.
+        const reported = metadata?.reportedCostUsd;
+        const fallback = typeof reported === "number" && Number.isFinite(reported) && reported >= 0 ? reported : undefined;
+        costUsd = fallback ?? 0;
+        if (fallback !== undefined) metadata = { ...metadata, costSource: "reported" };
+      }
     }
     const billed = client
       ? billedAmount(costUsd, { billingMode: client.billingMode, markupPct: Number(client.markupPct) })
@@ -136,7 +146,7 @@ export async function recordEvents(db: Db, ctx: RecordContext, events: (UsageEve
       status: e.status ?? null,
       streamed: e.streamed ?? false,
       outcome: e.outcome ?? null,
-      metadata: e.metadata ?? null,
+      metadata,
     });
   }
 

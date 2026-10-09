@@ -17,7 +17,10 @@ Settings > Import shows the snippets below with your server's URL filled in.
 - One usage event per request, with `source = ingest` and `metadata.integration` set to
   `litellm`, `helicone` or `openrouter`.
 - Cost is computed from the LLMpense price table (bundled list prices plus your overrides).
-  The cost the tool reported is kept as `metadata.reportedCostUsd`.
+  The cost the tool reported is kept as `metadata.reportedCostUsd`. When the price table has
+  no price for the model (for example Azure, Bedrock or Vertex deployments), the reported
+  cost is used instead, the event stays flagged as not priced and gets
+  `metadata.costSource = "reported"`. Add a price override to price it yourself.
 - The tool's request id becomes the event's `requestId`. Redelivered payloads are ignored.
 - Provider names are normalized (`vertex_ai` → `vertex`, `google` → `gemini`, `azure_ai` →
   `azure`, ...) and provider prefixes are stripped from model ids
@@ -140,5 +143,5 @@ Tokens: `gen_ai.usage.input_tokens` (or `prompt_tokens`) minus
 `gen_ai.usage.input_tokens.cache_write` is uncached input; cache writes are stored
 separately. The OTLP export has no documented cache-read attribute, so cache reads are priced
 as uncached input. The model's author prefix sets the provider (`google/...` → `gemini`,
-`anthropic/...` → `anthropic`); models from other authors are stored as `other` and need a
-price override to be priced.
+`anthropic/...` → `anthropic`); models from other authors are stored as `other` and use
+OpenRouter's reported cost until you add a price override.
