@@ -15,6 +15,13 @@
       "when": 1791543229935,
       "tag": "0001_zippy_blacklash",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791795395946,
+      "tag": "0002_billing_currencies",
+      "breakpoints": true
     }
   ]
 }

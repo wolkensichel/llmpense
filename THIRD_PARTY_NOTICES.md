@@ -134,3 +134,12 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+---
+
+## ECB euro foreign exchange reference rates
+
+- Source: European Central Bank, https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html
+- Data used: the daily, 90-day and historical XML feeds under https://www.ecb.europa.eu/stats/eurofxref/ (USD, GBP, JPY, CNY and CHF per EUR), fetched at run time by `pnpm fx:sync` and the web app; no rates are bundled. The test fixtures in `packages/core/src/fixtures/` are excerpts of these feeds.
+- Terms: https://www.ecb.europa.eu/services/disclaimer/html/index.en.html. Reproduction is permitted provided the information appears accurately and the ECB is cited as the source; modifications must be stated explicitly. The reference rates are published for information purposes only.
+- Modification: LLMpense calculates USD cross rates from the euro reference rates (target rate per EUR divided by the USD rate per EUR) and converts and rounds statement amounts with them. Statements that use an ECB rate print the source acknowledgement "Source: European Central Bank, euro foreign exchange reference rates. The USD rate is a cross rate calculated via EUR by LLMpense."

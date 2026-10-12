@@ -10,6 +10,7 @@ import {
   type UsageEventInput,
 } from "@llmpense/core";
 import type { Db } from "./client.ts";
+import { fxResolver } from "./fx.ts";
 import { alerts, budgets, clients, modelPrices, projects, usageEvents } from "./schema.ts";
 
 export interface RecordContext {
@@ -259,13 +260,17 @@ export async function evaluateFixedFeeLosses(db: Db, orgId: string, at = new Dat
     .groupBy(usageEvents.clientId);
   const costOf = new Map(spend.map((s) => [s.clientId, Number(s.cost)]));
 
+  // Fees in another currency are compared in USD at the month's rate.
+  const fx = await fxResolver(db, orgId, [period], at);
+
   const values: (typeof alerts.$inferInsert)[] = [];
   for (const c of fixedClients) {
     const loss = fixedFeeLoss({
-      terms: { billingMode: c.billingMode, markupPct: Number(c.markupPct), fixedFeeUsd: Number(c.fixedFeeUsd) },
+      terms: { billingMode: c.billingMode, markupPct: Number(c.markupPct), fixedFee: Number(c.fixedFee), currency: c.billingCurrency },
       period,
       costToDateUsd: costOf.get(c.id) ?? 0,
       asOf: at,
+      fx: fx(c.billingCurrency, period),
     });
     if (!loss) continue;
     values.push({

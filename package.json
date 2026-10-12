@@ -14,6 +14,7 @@
     "db:migrate": "pnpm --filter @llmpense/db migrate",
     "db:seed": "pnpm --filter @llmpense/db seed",
     "prices:sync": "pnpm --filter @llmpense/core prices:sync",
+    "fx:sync": "pnpm --filter @llmpense/db fx:sync",
     "licenses:check": "node scripts/check-licenses.mjs"
   },
   "devDependencies": {

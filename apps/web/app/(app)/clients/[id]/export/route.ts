@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/auth.ts";
 import { toCsv } from "@/lib/csv.ts";
-import { proratedFixedFee } from "@/lib/margin.ts";
+import { clientMargin } from "@/lib/margin.ts";
+import { getFx, usdPerUnit } from "@/lib/fx.ts";
 import { clientMonthUsage, getClient } from "@/lib/queries.ts";
 import { parseMonth } from "@/lib/range.ts";
 
@@ -48,10 +49,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   ]);
   const sum = (k: "requests" | "inputTokens" | "outputTokens" | "cacheReadTokens" | "cacheWriteTokens" | "cost" | "billed") =>
     rows.reduce((a, r) => a + r[k], 0);
-  // A whole calendar month earns the full fee, by the same rule the dashboards use.
-  const feeTotal = client.billingMode === "fixed" ? proratedFixedFee(client.fixedFeeUsd, month.start, month.end) : 0;
+  // A whole calendar month earns the full fee, by the same rule the dashboards use, converted to
+  // USD at the month's rate for fees in another currency.
+  const fx = await getFx(org.id, [monthParam!]);
+  const feeTotal = clientMargin({
+    costUsd: 0,
+    billedUsd: 0,
+    billingMode: client.billingMode,
+    fixedFee: client.fixedFee,
+    usdPerUnit: usdPerUnit(fx, client.billingCurrency),
+    start: month.start,
+    end: month.end,
+  }).fixedFeeUsd;
+  const feeLabel =
+    client.billingCurrency === "USD" ? "Fixed monthly fee" : `Fixed monthly fee (${client.fixedFee} ${client.billingCurrency} in USD)`;
   if (client.billingMode === "fixed") {
-    lines.push([monthParam!, client.name, "Fixed monthly fee", "", "", "", "", "", "", "", "", feeTotal.toFixed(2)]);
+    lines.push([monthParam!, client.name, feeLabel, "", "", "", "", "", "", "", "", feeTotal.toFixed(2)]);
   }
   lines.push([
     monthParam!,

@@ -54,30 +54,30 @@ describe("clientMargin", () => {
   const sep = { start: d("2026-09-01"), end: d("2026-10-01") };
 
   it("markup: revenue is the frozen billed amount", () => {
-    const m = clientMargin({ costUsd: 100, billedUsd: 130, billingMode: "markup", fixedFeeUsd: 0, ...sep });
+    const m = clientMargin({ costUsd: 100, billedUsd: 130, billingMode: "markup", fixedFee: 0, ...sep });
     expect(m).toMatchObject({ revenueUsd: 130, marginUsd: 30, fixedFeeUsd: 0 });
     expect(m.marginPct).toBeCloseTo(30 / 130);
   });
 
   it("fixed: revenue is the prorated fee, billed is ignored only when zero", () => {
-    const m = clientMargin({ costUsd: 400, billedUsd: 0, billingMode: "fixed", fixedFeeUsd: 300, ...sep });
+    const m = clientMargin({ costUsd: 400, billedUsd: 0, billingMode: "fixed", fixedFee: 300, ...sep });
     expect(m).toMatchObject({ revenueUsd: 300, marginUsd: -100, fixedFeeUsd: 300 });
     expect(m.marginPct).toBeCloseTo(-1 / 3);
 
-    const half = clientMargin({ costUsd: 50, billedUsd: 0, billingMode: "fixed", fixedFeeUsd: 300, start: d("2026-09-01"), end: d("2026-09-16") });
+    const half = clientMargin({ costUsd: 50, billedUsd: 0, billingMode: "fixed", fixedFee: 300, start: d("2026-09-01"), end: d("2026-09-16") });
     expect(half.revenueUsd).toBe(150);
     expect(half.marginUsd).toBe(100);
   });
 
   it("ignores the fee for clients not on fixed billing", () => {
-    const m = clientMargin({ costUsd: 10, billedUsd: 10, billingMode: "passthrough", fixedFeeUsd: 999, ...sep });
+    const m = clientMargin({ costUsd: 10, billedUsd: 10, billingMode: "passthrough", fixedFee: 999, ...sep });
     expect(m).toMatchObject({ revenueUsd: 10, marginUsd: 0, fixedFeeUsd: 0, marginPct: 0 });
   });
 
   it("absorbed and unattributed: no revenue, margin % undefined", () => {
-    const a = clientMargin({ costUsd: 12.5, billedUsd: 0, billingMode: "absorbed", fixedFeeUsd: 0, ...sep });
+    const a = clientMargin({ costUsd: 12.5, billedUsd: 0, billingMode: "absorbed", fixedFee: 0, ...sep });
     expect(a).toMatchObject({ revenueUsd: 0, marginUsd: -12.5, marginPct: null });
-    const u = clientMargin({ costUsd: 3, billedUsd: 0, billingMode: null, fixedFeeUsd: 300, ...sep });
+    const u = clientMargin({ costUsd: 3, billedUsd: 0, billingMode: null, fixedFee: 300, ...sep });
     expect(u).toMatchObject({ fixedFeeUsd: 0, marginUsd: -3, marginPct: null });
   });
 });
@@ -85,8 +85,8 @@ describe("clientMargin", () => {
 describe("sumMargins", () => {
   it("recomputes margin % from totals instead of averaging", () => {
     const sep = { start: d("2026-09-01"), end: d("2026-10-01") };
-    const a = clientMargin({ costUsd: 100, billedUsd: 200, billingMode: "markup", fixedFeeUsd: 0, ...sep });
-    const b = clientMargin({ costUsd: 50, billedUsd: 0, billingMode: "absorbed", fixedFeeUsd: 0, ...sep });
+    const a = clientMargin({ costUsd: 100, billedUsd: 200, billingMode: "markup", fixedFee: 0, ...sep });
+    const b = clientMargin({ costUsd: 50, billedUsd: 0, billingMode: "absorbed", fixedFee: 0, ...sep });
     const t = sumMargins([a, b]);
     expect(t).toMatchObject({ costUsd: 150, revenueUsd: 200, marginUsd: 50 });
     expect(t.marginPct).toBeCloseTo(0.25);
@@ -94,5 +94,18 @@ describe("sumMargins", () => {
 
   it("handles an empty list", () => {
     expect(sumMargins([])).toMatchObject({ costUsd: 0, revenueUsd: 0, marginUsd: 0, marginPct: null });
+  });
+});
+
+describe("fixed fees in another currency", () => {
+  it("converts each month's share with that month's rate", () => {
+    // 130 EUR per month; 1 EUR = 1.10 USD in September and 1.20 USD in October.
+    const usdPerUnit = (p: string) => (p === "2026-09" ? 1.1 : p === "2026-10" ? 1.2 : null);
+    const sep = clientMargin({ costUsd: 100, billedUsd: 0, billingMode: "fixed", fixedFee: 130, usdPerUnit, start: d("2026-09-01"), end: d("2026-10-01") });
+    expect(sep).toMatchObject({ fixedFeeUsd: 143, revenueUsd: 143, marginUsd: 43 });
+    // Mid September to mid October: half a fee at each rate.
+    const span = clientMargin({ costUsd: 0, billedUsd: 0, billingMode: "fixed", fixedFee: 130, usdPerUnit, start: d("2026-09-16"), end: new Date("2026-10-16T12:00:00Z") });
+    expect(span.fixedFeeUsd).toBeCloseTo(65 * 1.1 + 65 * 1.2, 6);
+    expect(dailyFixedFee(300, d("2026-09-10"), () => 1.1)).toBeCloseTo(11, 8);
   });
 });

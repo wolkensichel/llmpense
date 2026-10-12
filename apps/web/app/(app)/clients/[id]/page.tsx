@@ -7,8 +7,9 @@ import { getDb } from "@/lib/db.ts";
 import { getCurrentOrg } from "@/lib/org.ts";
 import { clientBreakdown, clientDaily, clientMargins, clientMonths, getClient, listProjects } from "@/lib/queries.ts";
 import { resolveRange } from "@/lib/range.ts";
-import { compactNum, count, delta, longDate, monthLabel, pct, usd } from "@/lib/format.ts";
-import { StatusBadge } from "@/components/statement.tsx";
+import { compactNum, count, delta, longDate, money, monthLabel, pct, usd } from "@/lib/format.ts";
+import { CurrencyTag, StatusBadge } from "@/components/statement.tsx";
+import type { Currency } from "@llmpense/core";
 import { DailyChart, type Series } from "@/components/daily-chart.tsx";
 import { Breakdown } from "@/components/breakdown.tsx";
 import { BillingBadge, ClientDot, Delta, FrozenNote, LossTag, MarginBar, MarginBarLegend, Panel } from "@/components/ui.tsx";
@@ -68,7 +69,8 @@ export default async function ClientPage({ params, searchParams }: Props) {
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-2">
           <ClientDot slot={client.slot} className="size-3" />
           <h1 className="text-[26px] leading-8 font-semibold tracking-tight lg:text-[30px] lg:leading-9">{client.name}</h1>
-          <BillingBadge mode={client.billingMode} markupPct={client.markupPct} fixedFeeUsd={client.fixedFeeUsd} />
+          <BillingBadge mode={client.billingMode} markupPct={client.markupPct} fixedFee={client.fixedFee} currency={client.billingCurrency} />
+          <CurrencyTag currency={client.billingCurrency} />
           {cur.marginUsd < 0 && <LossTag />}
         </div>
         <p className="mt-1 text-sm text-ink-2">{range.label}</p>
@@ -153,9 +155,9 @@ export default async function ClientPage({ params, searchParams }: Props) {
                     {m === thisMonth && <span className="text-[12px] text-ink-3">in progress</span>}
                   </span>
                   <span className="flex shrink-0 items-center gap-1 text-[13px] text-ink-2">
-                    {closed && st?.totalBilledUsd != null && (
+                    {closed && st?.totalBilled != null && (
                       <span className="num">
-                        {usd(Number(st.totalBilledUsd))}
+                        {money(Number(st.totalBilled), st.currency ?? "USD")}
                         <span className="hidden text-ink-3 sm:inline"> · closed {longDate(st.closedAt!)}</span>
                       </span>
                     )}
@@ -170,7 +172,15 @@ export default async function ClientPage({ params, searchParams }: Props) {
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:gap-6">
         <Panel title="Billing">
-          <BillingForm id={client.id} billingMode={client.billingMode} markupPct={client.markupPct} fixedFeeUsd={client.fixedFeeUsd} />
+          <BillingForm
+            id={client.id}
+            billingMode={client.billingMode}
+            markupPct={client.markupPct}
+            fixedFee={client.fixedFee}
+            currency={client.billingCurrency}
+            modelNames={client.modelNames}
+            orgShowModelNames={org.showModelNames}
+          />
         </Panel>
         <Panel title="Invoice export" sub="Requests, tokens, cost and billed amount per project and model for one month, as CSV.">
           <form action={`/clients/${client.id}/export`} method="get" className="space-y-3">
@@ -189,7 +199,7 @@ export default async function ClientPage({ params, searchParams }: Props) {
               <Download size={16} aria-hidden /> Download CSV
             </button>
             {client.billingMode === "fixed" && (
-              <p className="text-[13px] text-ink-3">The file ends with the monthly fixed fee of {usd(client.fixedFeeUsd)} as its own line.</p>
+              <p className="text-[13px] text-ink-3">The file ends with the monthly fixed fee of {money(client.fixedFee, client.billingCurrency)} as its own line{client.billingCurrency !== "USD" ? ", converted to USD at the month's rate" : ""}.</p>
             )}
           </form>
         </Panel>
@@ -211,7 +221,7 @@ function Fig({ label, value, d, loss = false }: { label: string; value: string; 
 }
 
 /** Explains the chart's billed line for the client's billing mode. */
-function billingLineNote(c: { name: string; billingMode: string; markupPct: number; fixedFeeUsd: number }): string {
+function billingLineNote(c: { name: string; billingMode: string; markupPct: number; fixedFee: number; billingCurrency: Currency }): string {
   const bars = "Bars: what each project cost you per day.";
   switch (c.billingMode) {
     case "markup":
@@ -219,7 +229,7 @@ function billingLineNote(c: { name: string; billingMode: string; markupPct: numb
     case "passthrough":
       return `${bars} Line: what ${c.name} was billed. Billed at cost, so it sits on top of the bars.`;
     case "fixed":
-      return `${bars} Line: each day's share of the ${usd(c.fixedFeeUsd)} monthly fixed fee. Where it sits above the bars, you keep the difference.`;
+      return `${bars} Line: each day's share of the ${money(c.fixedFee, c.billingCurrency)} monthly fixed fee${c.billingCurrency !== "USD" ? " in USD at each month's rate" : ""}. Where it sits above the bars, you keep the difference.`;
     default:
       return `${bars} You absorb this client's AI cost; nothing is billed.`;
   }

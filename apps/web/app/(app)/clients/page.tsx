@@ -82,7 +82,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: SP }
                           {cur.marginUsd < 0 && <LossTag />}
                         </div>
                       </td>
-                      <td>{c ? <BillingBadge mode={c.billingMode} markupPct={c.markupPct} fixedFeeUsd={c.fixedFeeUsd} /> : <span className="text-ink-3">None</span>}</td>
+                      <td>{c ? <BillingBadge mode={c.billingMode} markupPct={c.markupPct} fixedFee={c.fixedFee} currency={c.billingCurrency} /> : <span className="text-ink-3">None</span>}</td>
                       <td className="r">{count(cur.requests)}</td>
                       <td className="r">{usd(cur.costUsd)}</td>
                       <td className="r">
@@ -140,7 +140,7 @@ function ClientCard({ row, scale, q }: { row: ClientRow; scale: number; q: strin
             <span className="truncate font-medium">{c?.name ?? "Unattributed"}</span>
           </p>
           <div className="mt-1 flex flex-wrap gap-1.5">
-            {c && <BillingBadge mode={c.billingMode} markupPct={c.markupPct} fixedFeeUsd={c.fixedFeeUsd} />}
+            {c && <BillingBadge mode={c.billingMode} markupPct={c.markupPct} fixedFee={c.fixedFee} currency={c.billingCurrency} />}
             {cur.marginUsd < 0 && <LossTag />}
           </div>
         </div>

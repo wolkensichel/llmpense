@@ -1,3 +1,5 @@
+import { formatMoney, type Currency } from "@llmpense/core";
+
 const usd2 = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const usd0 = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const usd4 = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 4, maximumFractionDigits: 4 });
@@ -11,6 +13,11 @@ export function usd(n: number): string {
 
 export function usdWhole(n: number): string {
   return usd0.format(n).replace("-", "−");
+}
+
+/** An amount in a billing currency, e.g. "€1,234.50" or "¥1,235". */
+export function money(n: number, currency: Currency): string {
+  return formatMoney(n, currency);
 }
 
 /** Per-event amounts are often fractions of a cent. */

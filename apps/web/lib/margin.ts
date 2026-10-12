@@ -1,8 +1,13 @@
-import { periodMargin, proratedFixedFee, type BillingMode } from "@llmpense/core";
+import { periodMargin, proratedFixedFee, proratedFixedFeeUsd, type BillingMode } from "@llmpense/core";
 import { DAY_MS } from "./range.ts";
 
 /** The fixed-fee proration rule lives in @llmpense/core so statements and alerts share it. */
 export { proratedFixedFee };
+
+/** USD per unit of a fee's currency in a `YYYY-MM` period (1 for USD); null when unknown. */
+export type UsdPerUnit = (period: string) => number | null;
+
+const USD: UsdPerUnit = () => 1;
 
 export interface MarginInput {
   /** Provider cost in the range. */
@@ -10,7 +15,10 @@ export interface MarginInput {
   /** Sum of per-event billed amounts in the range (frozen at ingest time). */
   billedUsd: number;
   billingMode: BillingMode | null;
-  fixedFeeUsd: number;
+  /** Monthly fixed fee in the client's billing currency. */
+  fixedFee: number;
+  /** Converts the fee to USD per month; omitted for USD fees. */
+  usdPerUnit?: UsdPerUnit;
   start: Date;
   end: Date;
 }
@@ -18,6 +26,7 @@ export interface MarginInput {
 export interface MarginResult {
   costUsd: number;
   billedUsd: number;
+  /** The prorated fixed fee in USD, each month converted with that month's rate. */
   fixedFeeUsd: number;
   revenueUsd: number;
   marginUsd: number;
@@ -27,10 +36,10 @@ export interface MarginResult {
 
 /**
  * Margin for one client (or unattributed traffic, billingMode null) over a range.
- * Revenue = billed amounts + the prorated fixed fee for fixed-mode clients.
+ * Revenue = billed amounts + the prorated fixed fee (in USD) for fixed-mode clients.
  */
 export function clientMargin(i: MarginInput): MarginResult {
-  const fixedFeeUsd = i.billingMode === "fixed" ? proratedFixedFee(i.fixedFeeUsd, i.start, i.end) : 0;
+  const fixedFeeUsd = i.billingMode === "fixed" ? proratedFixedFeeUsd(i.fixedFee, i.start, i.end, i.usdPerUnit ?? USD) : 0;
   const m = periodMargin({ costUsd: i.costUsd, billedUsd: i.billedUsd, fixedFeeUsd });
   return { costUsd: i.costUsd, billedUsd: i.billedUsd, fixedFeeUsd, ...m };
 }
@@ -48,7 +57,7 @@ export function sumMargins(rows: MarginResult[]): MarginResult {
   return { ...t, ...periodMargin(t) };
 }
 
-/** Fixed fee attributable to a single UTC day (for daily revenue lines). */
-export function dailyFixedFee(monthlyFee: number, day: Date): number {
-  return proratedFixedFee(monthlyFee, day, new Date(day.getTime() + DAY_MS));
+/** Fixed fee attributable to a single UTC day, in USD (for daily revenue lines). */
+export function dailyFixedFee(monthlyFee: number, day: Date, usdPerUnit: UsdPerUnit = USD): number {
+  return proratedFixedFeeUsd(monthlyFee, day, new Date(day.getTime() + DAY_MS), usdPerUnit);
 }

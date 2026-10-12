@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, Download, FileText, LockOpen, Lock } from "lucide-react";
+import { ChevronLeft, Download, FileText } from "lucide-react";
 import { canClose, parsePeriod, periodOf } from "@llmpense/core";
 import { getCurrentOrg } from "@/lib/org.ts";
 import { clientStatement } from "@/lib/statements.ts";
 import { dateTime, longDate, monthLabel, pct, usd } from "@/lib/format.ts";
 import { BillingBadge, LossTag, Panel } from "@/components/ui.tsx";
-import { MonthSwitcher, StatementLines, StatusBadge } from "@/components/statement.tsx";
+import { billedText, CurrencyTag, MissingRate, MonthSwitcher, RateLine, StatementLines, StatusBadge } from "@/components/statement.tsx";
+import { ConfirmForm } from "@/components/confirm-form.tsx";
 import { closeStatementAction, reopenStatementAction } from "@/app/(app)/statements/actions.ts";
 
 type Props = { params: Promise<{ id: string; month: string }> };
@@ -30,8 +31,11 @@ export default async function StatementPage({ params }: Props) {
 
   const t = s.data.totals;
   const terms = s.data.terms;
-  const closable = canClose(month, now).ok;
+  const foreign = terms.currency !== "USD";
+  const closable = canClose(month, now).ok && s.data.fx !== null;
   const base = `/clients/${s.client.id}/statements`;
+  const fields = { clientId: s.client.id, period: month };
+  const usdSub = (v: number) => (foreign ? `${usd(v)} USD equivalent` : undefined);
 
   return (
     <div className="space-y-5 lg:space-y-6">
@@ -47,7 +51,8 @@ export default async function StatementPage({ params }: Props) {
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-2">
           <h1 className="text-[24px] leading-8 font-semibold tracking-tight lg:text-[28px] lg:leading-9">Statement</h1>
           <StatusBadge status={s.status} />
-          <BillingBadge mode={terms.billingMode} markupPct={terms.markupPct} fixedFeeUsd={terms.fixedFeeUsd} />
+          <BillingBadge mode={terms.billingMode} markupPct={terms.markupPct} fixedFee={terms.fixedFee} currency={terms.currency} />
+          <CurrencyTag currency={terms.currency} />
           {t.marginUsd < 0 && <LossTag />}
         </div>
         <p className="mt-1 text-sm text-ink-2">
@@ -65,43 +70,61 @@ export default async function StatementPage({ params }: Props) {
             <Download size={16} aria-hidden /> CSV
           </a>
           {s.status === "closed" ? (
-            <form action={reopenStatementAction} className="col-span-2 sm:col-span-1">
-              <input type="hidden" name="clientId" value={s.client.id} />
-              <input type="hidden" name="period" value={month} />
-              <button className="btn btn-quiet w-full">
-                <LockOpen size={16} aria-hidden /> Reopen
-              </button>
-            </form>
+            <ConfirmForm
+              action={reopenStatementAction}
+              fields={fields}
+              className="col-span-2 sm:col-span-1"
+              variant="quiet"
+              icon="unlock"
+              label="Reopen"
+              title={`Reopen ${monthLabel(month)} for ${s.client.name}?`}
+              body="The statement goes back to a live draft and will be recomputed from recorded usage, the current billing settings and the current exchange rate."
+              confirmLabel="Reopen statement"
+            />
           ) : closable ? (
-            <form action={closeStatementAction} className="col-span-2 sm:col-span-1">
-              <input type="hidden" name="clientId" value={s.client.id} />
-              <input type="hidden" name="period" value={month} />
-              <button className="btn btn-primary w-full">
-                <Lock size={16} aria-hidden /> Close statement
-              </button>
-            </form>
+            <ConfirmForm
+              action={closeStatementAction}
+              fields={fields}
+              className="col-span-2 sm:col-span-1"
+              icon="lock"
+              label="Close statement"
+              title={`Close ${monthLabel(month)} for ${s.client.name}?`}
+              body={`Totals and line items are frozen${foreign ? ", together with the exchange rate" : ""}; later usage, price or billing changes won't affect this statement. You can reopen it.`}
+              confirmLabel="Close statement"
+            />
           ) : null}
         </div>
       </div>
 
-      <StatusNote status={s.status} closedAt={s.closedAt} reopenedAt={s.reopenedAt} closable={closable} coverage={s.data.feeCoverage} />
+      <MissingRate data={s.data} />
+      <StatusNote status={s.status} closedAt={s.closedAt} reopenedAt={s.reopenedAt} closable={canClose(month, now).ok} coverage={s.data.feeCoverage} />
 
       <section aria-label="Totals" className="rounded-xl border border-line bg-surface p-4 lg:p-5">
         <dl className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3 xl:grid-cols-6">
           <Fig label="Provider cost" value={usd(t.costUsd)} />
-          <Fig label="Billed for usage" value={usd(t.usageBilledUsd)} />
+          <Fig label="Billed for usage" value={billedText(t.usageBilled, s.data)} sub={usdSub(t.usageBilledUsd)} />
           <Fig
             label="Fixed fee"
-            value={terms.billingMode === "fixed" ? usd(t.fixedFeeUsd) : "–"}
-            sub={s.data.feeCoverage === "to_date" ? `of ${usd(terms.fixedFeeUsd)}, to date` : undefined}
+            value={terms.billingMode === "fixed" ? billedText(t.fixedFee, s.data) : "–"}
+            sub={
+              terms.billingMode !== "fixed"
+                ? undefined
+                : s.data.feeCoverage === "to_date"
+                  ? `of ${billedText(terms.fixedFee, s.data)}, to date`
+                  : usdSub(t.fixedFeeUsd)
+            }
           />
-          <Fig label="Total billed" value={usd(t.totalBilledUsd)} strong />
+          <Fig label="Total billed" value={billedText(t.totalBilled, s.data)} sub={usdSub(t.totalBilledUsd)} strong />
           <Fig label="Margin" value={usd(t.marginUsd)} loss={t.marginUsd < 0} />
           <Fig label="Margin %" value={pct(t.marginPct)} loss={t.marginPct !== null && t.marginPct < 0} />
         </dl>
+        {foreign && <RateLine fx={s.data.fx} className="mt-4 border-t border-line pt-3" />}
       </section>
 
-      <Panel title="Line items" sub="Per project and model. Billed amounts are rounded to cents per line; the total is their sum.">
+      <Panel
+        title="Line items"
+        sub={`Per project and model. Billed amounts are rounded to the ${foreign ? `${terms.currency} minor unit` : "cent"} per line; the total is their sum. Provider cost and margin are in USD.`}
+      >
         <StatementLines data={s.data} />
       </Panel>
     </div>
@@ -123,11 +146,11 @@ function StatusNote({
 }) {
   let text: string;
   if (status === "closed") {
-    text = `Closed ${longDate(closedAt!)}. Totals and line items are frozen; later usage, price or billing changes don't affect them. Reopen to recompute.`;
+    text = `Closed ${longDate(closedAt!)}. Totals, line items and the exchange rate are frozen; later usage, price or billing changes don't affect them. Reopen to recompute.`;
   } else if (!closable) {
-    text = `Draft, computed live. The month is still running${coverage === "to_date" ? ", so the fixed fee is prorated to date" : ""}. It can be closed once it ends.`;
+    text = `Draft, computed live with the latest exchange rate. The month is still running${coverage === "to_date" ? ", so the fixed fee is prorated to date" : ""}. It can be closed once it ends.`;
   } else {
-    text = `Draft, computed live from recorded usage and the client's current billing settings. Close it to freeze the numbers.`;
+    text = `Draft, computed live from recorded usage, the client's current billing settings and the month's exchange rate. Close it to freeze the numbers.`;
   }
   return (
     <p className="rounded-lg border border-line bg-surface-2 px-3 py-2.5 text-[13px] text-ink-2">

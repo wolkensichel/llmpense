@@ -1,8 +1,9 @@
 import "server-only";
 import { and, asc, desc, eq, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { alerts, apiKeys, budgets, clients, modelPrices, projects, usageEvents } from "@llmpense/db";
-import type { BillingMode } from "@llmpense/core";
+import { periodsBetween, type BillingMode, type Currency, type ModelNameDisplay } from "@llmpense/core";
 import { getDb } from "./db.ts";
+import { getFx, usdPerUnit } from "./fx.ts";
 import { clientMargin, dailyFixedFee, sumMargins, type MarginResult } from "./margin.ts";
 import { eachDay, monthStartUtc, type DateRange } from "./range.ts";
 
@@ -22,7 +23,11 @@ export interface ClientInfo {
   slug: string;
   billingMode: BillingMode;
   markupPct: number;
-  fixedFeeUsd: number;
+  /** Monthly fixed fee in the billing currency. */
+  fixedFee: number;
+  billingCurrency: Currency;
+  /** Model names on client-facing statements; null follows the org default. */
+  modelNames: ModelNameDisplay | null;
   /** Stable categorical color slot (1-8) by creation order; 0 = "other". */
   slot: number;
 }
@@ -39,7 +44,9 @@ export async function listClients(orgId: string): Promise<ClientInfo[]> {
     slug: c.slug,
     billingMode: c.billingMode,
     markupPct: num(c.markupPct),
-    fixedFeeUsd: num(c.fixedFeeUsd),
+    fixedFee: num(c.fixedFee),
+    billingCurrency: c.billingCurrency,
+    modelNames: c.modelNames,
     slot: i < 8 ? i + 1 : 0,
   }));
 }
@@ -68,8 +75,10 @@ export interface ClientRow {
 
 /** Per-client cost/billed/requests/tokens for the range and its comparison period, in one scan. */
 export async function clientMargins(orgId: string, range: DateRange) {
-  const [list, agg] = await Promise.all([
+  const [list, fx, agg] = await Promise.all([
     listClients(orgId),
+    // Fixed fees in other currencies count in USD at each month's rate.
+    getFx(orgId, periodsBetween(range.prevStart, range.end)),
     rows(sql`
       select client_id,
         coalesce(sum(cost_usd) filter (where ts >= ${ts(range.start)}), 0) as cost,
@@ -91,16 +100,16 @@ export async function clientMargins(orgId: string, range: DateRange) {
 
   const build = (client: ClientInfo | null, r: Record<string, unknown> | undefined): ClientRow => {
     const billingMode = client?.billingMode ?? null;
-    const fixedFeeUsd = client?.fixedFeeUsd ?? 0;
+    const fee = { fixedFee: client?.fixedFee ?? 0, usdPerUnit: usdPerUnit(fx, client?.billingCurrency ?? "USD") };
     return {
       client,
       current: {
-        ...clientMargin({ costUsd: num(r?.cost), billedUsd: num(r?.billed), billingMode, fixedFeeUsd, start: range.start, end: range.end }),
+        ...clientMargin({ costUsd: num(r?.cost), billedUsd: num(r?.billed), billingMode, ...fee, start: range.start, end: range.end }),
         requests: num(r?.requests),
         tokens: num(r?.tokens),
       },
       previous: {
-        ...clientMargin({ costUsd: num(r?.prev_cost), billedUsd: num(r?.prev_billed), billingMode, fixedFeeUsd, start: range.prevStart, end: range.prevEnd }),
+        ...clientMargin({ costUsd: num(r?.prev_cost), billedUsd: num(r?.prev_billed), billingMode, ...fee, start: range.prevStart, end: range.prevEnd }),
         requests: num(r?.prev_requests),
         tokens: num(r?.prev_tokens),
       },
@@ -187,12 +196,16 @@ export async function clientBreakdown(orgId: string, clientId: string, range: Da
 
 /** Daily cost per project plus daily revenue (billed + that day's share of the fixed fee). */
 export async function clientDaily(orgId: string, client: ClientInfo, range: DateRange) {
-  const r = await rows(sql`
+  const [r, fx] = await Promise.all([
+    rows(sql`
     select to_char(ts at time zone 'UTC', 'YYYY-MM-DD') as day, project_id,
       sum(cost_usd) as cost, sum(billed_usd) as billed
     from usage_events
     where org_id = ${orgId} and client_id = ${client.id} and ts >= ${ts(range.start)} and ts < ${ts(range.end)}
-    group by 1, 2`);
+    group by 1, 2`),
+    getFx(orgId, periodsBetween(range.start, range.end)),
+  ]);
+  const feeToUsd = usdPerUnit(fx, client.billingCurrency);
   const days = eachDay(range.start, range.end);
   const map = new Map(days.map((d) => [d, { cost: {} as Record<string, number>, billed: 0 }]));
   for (const x of r) {
@@ -203,7 +216,7 @@ export async function clientDaily(orgId: string, client: ClientInfo, range: Date
   }
   return days.map((day) => {
     const b = map.get(day)!;
-    const fee = client.billingMode === "fixed" ? dailyFixedFee(client.fixedFeeUsd, new Date(`${day}T00:00:00Z`)) : 0;
+    const fee = client.billingMode === "fixed" ? dailyFixedFee(client.fixedFee, new Date(`${day}T00:00:00Z`), feeToUsd) : 0;
     return { day, ...b.cost, revenue: Math.round((b.billed + fee) * 100) / 100 };
   });
 }

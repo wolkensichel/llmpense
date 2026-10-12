@@ -16,9 +16,10 @@ export async function saveBranding(_prev: BrandingState, form: FormData): Promis
     brandAddress: form.get("brandAddress") ?? "",
     brandFooter: form.get("brandFooter") ?? "",
     brandLogoUrl: form.get("brandLogoUrl") ?? "",
+    showModelNames: form.get("showModelNames") === "on",
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form." };
   await getDb().update(orgs).set(parsed.data).where(eq(orgs.id, org.id));
   revalidatePath("/", "layout");
-  return { ok: "Branding saved. Client statements use it right away." };
+  return { ok: "Branding saved. Client statements use it right away, closed ones included." };
 }

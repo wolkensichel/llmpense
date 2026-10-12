@@ -1,15 +1,17 @@
 /**
  * Demo data: one agency org with statement branding, four clients with different billing
- * modes, 60 days of traffic, budgets, last month's statements closed, and an API key printed
+ * modes and currencies (USD, EUR, GBP), a few demo exchange rates,
+ * 60 days of traffic, budgets, last month's statements closed, and an API key printed
  * to stdout. Safe to re-run: it wipes the demo org.
  */
-import { eq } from "drizzle-orm";
+import { and, eq, gte, lte } from "drizzle-orm";
 import { createDb } from "./client.ts";
 import { generateApiKey } from "./keys.ts";
 import { evaluateAlerts, recordEvents } from "./record.ts";
 import { closeAllDrafts } from "./statements.ts";
-import { apiKeys, budgets, clients, orgs, projects } from "./schema.ts";
-import type { UsageEventInput } from "@llmpense/core";
+import { apiKeys, budgets, clients, fxRates, orgs, projects } from "./schema.ts";
+import { SEED_RATE_SOURCE, type UsageEventInput } from "@llmpense/core";
+import { upsertEurRates } from "./fx.ts";
 
 const db = createDb();
 const SLUG = "demo-agency";
@@ -27,21 +29,32 @@ const [org] = await db
   .returning();
 const orgId = org!.id;
 
+// Fixed fees are in each client's billing currency. Globex's statements show one line per
+// project (model names hidden); the others follow the org default and name the models.
 const CLIENTS = [
-  { slug: "acme-retail", name: "Acme Retail", billingMode: "markup", markupPct: "30", fixedFeeUsd: "0",
+  { slug: "acme-retail", name: "Acme Retail", billingMode: "markup", markupPct: "30", fixedFee: "0", currency: "USD", modelNames: "show",
     projects: [["support-bot", "Support bot"], ["product-search", "Product search"]], scale: 1.0 },
-  { slug: "northwind-legal", name: "Northwind Legal", billingMode: "fixed", markupPct: "0", fixedFeeUsd: "150",
+  { slug: "northwind-legal", name: "Northwind Legal", billingMode: "fixed", markupPct: "0", fixedFee: "130", currency: "EUR", modelNames: null,
     projects: [["contract-review", "Contract review"]], scale: 1.6 },
-  { slug: "globex-health", name: "Globex Health", billingMode: "passthrough", markupPct: "0", fixedFeeUsd: "0",
+  { slug: "globex-health", name: "Globex Health", billingMode: "passthrough", markupPct: "0", fixedFee: "0", currency: "GBP", modelNames: "hide",
     projects: [["intake-assistant", "Intake assistant"], ["summaries", "Visit summaries"]], scale: 0.7 },
-  { slug: "initech", name: "Initech", billingMode: "absorbed", markupPct: "0", fixedFeeUsd: "0",
+  { slug: "initech", name: "Initech", billingMode: "absorbed", markupPct: "0", fixedFee: "0", currency: "USD", modelNames: null,
     projects: [["pilot", "Pilot"]], scale: 0.25 },
 ] as const;
 
 for (const c of CLIENTS) {
   const [row] = await db
     .insert(clients)
-    .values({ orgId, slug: c.slug, name: c.name, billingMode: c.billingMode, markupPct: c.markupPct, fixedFeeUsd: c.fixedFeeUsd })
+    .values({
+      orgId,
+      slug: c.slug,
+      name: c.name,
+      billingMode: c.billingMode,
+      markupPct: c.markupPct,
+      fixedFee: c.fixedFee,
+      billingCurrency: c.currency,
+      modelNames: c.modelNames,
+    })
     .returning();
   await db.insert(projects).values(c.projects.map(([slug, name]) => ({ orgId, clientId: row!.id, slug, name })));
 }
@@ -99,6 +112,41 @@ for (let i = 0; i < events.length; i += 1000) {
   await recordEvents(db, { orgId, source: "seed" }, events.slice(i, i + 1000));
 }
 
+// A small fixed set of exchange rates (per 1 EUR) so the demo works offline: the last business
+// day of each seeded month and the latest business day so far. They are labelled as seed data
+// and never replace stored ECB rates; `pnpm fx:sync` or the web app's daily fetch overwrite them.
+const SEED_RATES = { USD: 1.165, GBP: 0.865, JPY: 172.4, CNY: 8.32, CHF: 0.935 };
+const DRIFT = [0.996, 1.0, 1.003, 1.001];
+const shiftDays = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+const lastBusinessDay = (d: Date) => {
+  const x = new Date(d);
+  while (x.getUTCDay() === 0 || x.getUTCDay() === 6) x.setUTCDate(x.getUTCDate() - 1);
+  return x.toISOString().slice(0, 10);
+};
+const rateDays = [3, 2, 1].map((back) => {
+  const t = new Date(now);
+  return lastBusinessDay(new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() - back + 1, 0)));
+});
+rateDays.push(lastBusinessDay(new Date(now)));
+// Skip them entirely when ECB rates for the seeded months are already stored (an online install).
+const [ecbRow] = await db
+  .select({ date: fxRates.date })
+  .from(fxRates)
+  .where(and(eq(fxRates.source, "ecb"), lte(fxRates.date, rateDays[0]!), gte(fxRates.date, shiftDays(rateDays[0]!, -7))))
+  .limit(1);
+if (!ecbRow) await upsertEurRates(
+  db,
+  rateDays.flatMap((date, i) =>
+    Object.entries(SEED_RATES).map(([currency, rate]) => ({
+      date,
+      currency,
+      ratePerEur: Math.round(rate * DRIFT[i]! * 10_000) / 10_000,
+      source: SEED_RATE_SOURCE,
+    })),
+  ),
+  { overwrite: false },
+);
+
 const acme = await db.query.clients.findFirst({ where: eq(clients.slug, "acme-retail") });
 const northwind = await db.query.clients.findFirst({ where: eq(clients.slug, "northwind-legal") });
 await db.insert(budgets).values([
@@ -122,6 +170,6 @@ const closed = await closeAllDrafts(db, orgId, lastPeriod, closeDay < today ? cl
 const k = generateApiKey();
 await db.insert(apiKeys).values({ orgId, name: "Demo key", prefix: k.prefix, hash: k.hash });
 
-console.log(`seeded org ${orgId} with ${events.length} events, closed ${closed} statements for ${lastPeriod}`);
+console.log(`seeded org ${orgId} with ${events.length} events, closed ${closed.closed} statements for ${lastPeriod}`);
 console.log(`demo API key: ${k.key}`);
 await db.$client.end();

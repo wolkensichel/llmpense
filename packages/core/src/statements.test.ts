@@ -32,8 +32,8 @@ const line = (o: Partial<UsageLine>): UsageLine => ({
   ...o,
 });
 
-const markup: StatementTerms = { billingMode: "markup", markupPct: 30, fixedFeeUsd: 0 };
-const fixed: StatementTerms = { billingMode: "fixed", markupPct: 0, fixedFeeUsd: 300 };
+const markup: StatementTerms = { billingMode: "markup", markupPct: 30, fixedFee: 0, currency: "USD" };
+const fixed: StatementTerms = { billingMode: "fixed", markupPct: 0, fixedFee: 300, currency: "USD" };
 const AFTER_SEP = at("2026-10-05");
 
 describe("periods", () => {
@@ -86,7 +86,7 @@ describe("buildStatement totals", () => {
   it("pass-through: sub-cent rounding of billed lines is not reported as a loss", () => {
     const s = buildStatement({
       period: "2026-09",
-      terms: { billingMode: "passthrough", markupPct: 0, fixedFeeUsd: 0 },
+      terms: { billingMode: "passthrough", markupPct: 0, fixedFee: 0, currency: "USD" },
       asOf: AFTER_SEP,
       usage: [line({ costUsd: 1.234, billedUsd: 1.234 }), line({ model: "gpt-5", costUsd: 2.004, billedUsd: 2.004 })],
     });
@@ -95,7 +95,7 @@ describe("buildStatement totals", () => {
     expect(s.totals.marginUsd).toBe(-0.01);
     const exact = buildStatement({
       period: "2026-09",
-      terms: { billingMode: "passthrough", markupPct: 0, fixedFeeUsd: 0 },
+      terms: { billingMode: "passthrough", markupPct: 0, fixedFee: 0, currency: "USD" },
       asOf: AFTER_SEP,
       usage: [line({ costUsd: 1.234, billedUsd: 1.234 })],
     });
@@ -128,7 +128,7 @@ describe("buildStatement totals", () => {
   it("absorbed: nothing billed, margin is the negative cost", () => {
     const s = buildStatement({
       period: "2026-09",
-      terms: { billingMode: "absorbed", markupPct: 0, fixedFeeUsd: 500 },
+      terms: { billingMode: "absorbed", markupPct: 0, fixedFee: 500, currency: "USD" },
       asOf: AFTER_SEP,
       usage: [line({ costUsd: 12.5, billedUsd: 0 })],
     });
@@ -148,28 +148,28 @@ describe("fixed fee proration for partial months", () => {
 
   it("prorates the running month up to asOf", () => {
     // 15 of 30 September days
-    expect(statementFixedFee(fixed, sep, at("2026-09-16"))).toEqual({ feeUsd: 150, coverage: "to_date" });
+    expect(statementFixedFee(fixed, sep, at("2026-09-16"))).toEqual({ fee: 150, coverage: "to_date" });
     // half a day
-    expect(statementFixedFee(fixed, sep, at("2026-09-01T12:00:00Z"))).toEqual({ feeUsd: 5, coverage: "to_date" });
+    expect(statementFixedFee(fixed, sep, at("2026-09-01T12:00:00Z"))).toEqual({ fee: 5, coverage: "to_date" });
   });
 
   it("uses each month's own length", () => {
     const feb = parsePeriod("2026-02")!;
-    expect(statementFixedFee({ ...fixed, fixedFeeUsd: 280 }, feb, at("2026-02-08")).feeUsd).toBe(70);
-    expect(statementFixedFee({ ...fixed, fixedFeeUsd: 280 }, feb, at("2026-03-02")).feeUsd).toBe(280);
+    expect(statementFixedFee({ ...fixed, fixedFee: 280 }, feb, at("2026-02-08")).fee).toBe(70);
+    expect(statementFixedFee({ ...fixed, fixedFee: 280 }, feb, at("2026-03-02")).fee).toBe(280);
   });
 
   it("bills nothing for a month that has not started or a zero fee", () => {
-    expect(statementFixedFee(fixed, sep, at("2026-08-31"))).toEqual({ feeUsd: 0, coverage: "none" });
-    expect(statementFixedFee({ ...fixed, fixedFeeUsd: 0 }, sep, AFTER_SEP)).toEqual({ feeUsd: 0, coverage: "none" });
-    expect(statementFixedFee({ ...markup, fixedFeeUsd: 300 }, sep, AFTER_SEP)).toEqual({ feeUsd: 0, coverage: "none" });
+    expect(statementFixedFee(fixed, sep, at("2026-08-31"))).toEqual({ fee: 0, coverage: "none" });
+    expect(statementFixedFee({ ...fixed, fixedFee: 0 }, sep, AFTER_SEP)).toEqual({ fee: 0, coverage: "none" });
+    expect(statementFixedFee({ ...markup, fixedFee: 300 }, sep, AFTER_SEP)).toEqual({ fee: 0, coverage: "none" });
   });
 
   it("rounds the prorated fee to cents and matches the dashboard rule", () => {
     const oct = parsePeriod("2026-10")!;
     const asOf = at("2026-10-10");
-    expect(statementFixedFee(fixed, oct, asOf).feeUsd).toBe(cents(proratedFixedFee(300, oct.start, asOf)));
-    expect(statementFixedFee(fixed, oct, asOf).feeUsd).toBe(87.1);
+    expect(statementFixedFee(fixed, oct, asOf).fee).toBe(cents(proratedFixedFee(300, oct.start, asOf)));
+    expect(statementFixedFee(fixed, oct, asOf).fee).toBe(87.1);
   });
 
   it("a draft of the running month shows the fee to date", () => {
@@ -263,7 +263,7 @@ describe("fixedFeeLoss", () => {
 
   it("ignores clients not on a fixed fee and months without cost", () => {
     expect(fixedFeeLoss({ terms: markup, period: "2026-10", costToDateUsd: 1000, asOf: at("2026-10-10") })).toBeNull();
-    expect(fixedFeeLoss({ terms: { ...fixed, fixedFeeUsd: 0 }, period: "2026-10", costToDateUsd: 0, asOf: at("2026-10-10") })).toBeNull();
-    expect(fixedFeeLoss({ terms: { ...fixed, fixedFeeUsd: 0 }, period: "2026-10", costToDateUsd: 1, asOf: at("2026-10-10") })).toMatchObject({ feeToDateUsd: 0 });
+    expect(fixedFeeLoss({ terms: { ...fixed, fixedFee: 0 }, period: "2026-10", costToDateUsd: 0, asOf: at("2026-10-10") })).toBeNull();
+    expect(fixedFeeLoss({ terms: { ...fixed, fixedFee: 0 }, period: "2026-10", costToDateUsd: 1, asOf: at("2026-10-10") })).toMatchObject({ feeToDateUsd: 0 });
   });
 });

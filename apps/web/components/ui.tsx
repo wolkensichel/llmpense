@@ -1,6 +1,6 @@
 import { ArrowDownRight, ArrowUpRight, Minus, TriangleAlert } from "lucide-react";
-import type { BillingMode } from "@llmpense/core";
-import { BILLING_LABELS, pct, usd } from "@/lib/format.ts";
+import type { BillingMode, Currency } from "@llmpense/core";
+import { BILLING_LABELS, money, pct, usd } from "@/lib/format.ts";
 
 export function PageHeader({ title, sub, actions }: { title: string; sub?: React.ReactNode; actions?: React.ReactNode }) {
   return (
@@ -51,12 +51,23 @@ export function ClientDot({ slot, className = "" }: { slot: number; className?: 
   return <span aria-hidden className={`inline-block size-2.5 shrink-0 rounded-full ${className}`} style={{ background: SLOT_VAR(slot) }} />;
 }
 
-export function BillingBadge({ mode, markupPct, fixedFeeUsd }: { mode: BillingMode; markupPct?: number; fixedFeeUsd?: number }) {
+export function BillingBadge({
+  mode,
+  markupPct,
+  fixedFee,
+  currency = "USD",
+}: {
+  mode: BillingMode;
+  markupPct?: number;
+  /** Monthly fee in `currency`. */
+  fixedFee?: number;
+  currency?: Currency;
+}) {
   const detail =
     mode === "markup" && markupPct !== undefined
       ? ` +${markupPct}%`
-      : mode === "fixed" && fixedFeeUsd !== undefined
-        ? ` ${usd(fixedFeeUsd).replace(".00", "")}/mo`
+      : mode === "fixed" && fixedFee !== undefined
+        ? ` ${money(fixedFee, currency).replace(/\.00$/, "")}/mo`
         : "";
   return (
     <span className="inline-flex items-center rounded-md border border-line px-1.5 text-xs leading-5 whitespace-nowrap text-ink-2">

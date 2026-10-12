@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import type { BillingMode } from "@llmpense/core";
+import { CURRENCIES, CURRENCY_NAMES, minorUnits, type BillingMode, type Currency, type ModelNameDisplay } from "@llmpense/core";
 import { updateBilling } from "./actions.ts";
 
 const MODES: { value: BillingMode; label: string; hint: string }[] = [
@@ -15,15 +15,23 @@ export function BillingForm({
   id,
   billingMode,
   markupPct,
-  fixedFeeUsd,
+  fixedFee,
+  currency,
+  modelNames,
+  orgShowModelNames,
 }: {
   id: string;
   billingMode: BillingMode;
   markupPct: number;
-  fixedFeeUsd: number;
+  /** Monthly fee in `currency`. */
+  fixedFee: number;
+  currency: Currency;
+  modelNames: ModelNameDisplay | null;
+  orgShowModelNames: boolean;
 }) {
   const [state, action, pending] = useActionState(updateBilling, undefined);
   const [mode, setMode] = useState<BillingMode>(billingMode);
+  const [cur, setCur] = useState<Currency>(currency);
   return (
     <form action={action} className="space-y-4">
       <input type="hidden" name="id" value={id} />
@@ -54,6 +62,24 @@ export function BillingForm({
         </div>
       </fieldset>
       <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block">
+          <span className="mb-1.5 block text-sm font-medium">Billing currency</span>
+          <select name="billingCurrency" className="field" value={cur} onChange={(e) => setCur(e.target.value as Currency)}>
+            {CURRENCIES.map((c) => (
+              <option key={c} value={c}>
+                {c}, {CURRENCY_NAMES[c]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1.5 block text-sm font-medium">Model names on client statements</span>
+          <select name="modelNames" className="field" defaultValue={modelNames ?? ""}>
+            <option value="">Use default ({orgShowModelNames ? "show" : "hide"})</option>
+            <option value="show">Show model names</option>
+            <option value="hide">Hide, one line per project</option>
+          </select>
+        </label>
         <label className={mode === "markup" ? "" : "opacity-50"}>
           <span className="mb-1.5 block text-sm font-medium">Markup %</span>
           <input
@@ -69,22 +95,22 @@ export function BillingForm({
           />
         </label>
         <label className={mode === "fixed" ? "" : "opacity-50"}>
-          <span className="mb-1.5 block text-sm font-medium">Monthly fixed fee (USD)</span>
+          <span className="mb-1.5 block text-sm font-medium">Monthly fixed fee ({cur})</span>
           <input
             className="field num"
-            name="fixedFeeUsd"
+            name="fixedFee"
             type="number"
             inputMode="decimal"
             min={0}
-            step="0.01"
-            defaultValue={fixedFeeUsd}
+            step={minorUnits(cur) === 0 ? "1" : "0.01"}
+            defaultValue={fixedFee}
             disabled={mode !== "fixed"}
           />
         </label>
       </div>
       {/* Disabled inputs are not submitted; keep the stored values. */}
       {mode !== "markup" && <input type="hidden" name="markupPct" value={markupPct} />}
-      {mode !== "fixed" && <input type="hidden" name="fixedFeeUsd" value={fixedFeeUsd} />}
+      {mode !== "fixed" && <input type="hidden" name="fixedFee" value={fixedFee} />}
       <div className="flex flex-wrap items-center gap-3">
         <button className="btn btn-primary" disabled={pending}>
           {pending ? "Saving…" : "Save billing"}
@@ -94,8 +120,9 @@ export function BillingForm({
         </p>
       </div>
       <p className="text-[13px] text-ink-3">
-        Billed amounts already recorded stay as they were. Fixed fees apply to every calendar month and are prorated by day in
-        partial ranges.
+        Usage is billed in USD and converted on each statement with the month&apos;s exchange rate (ECB reference rate, or your manual
+        rate). The fixed fee is in the billing currency. Billed amounts already recorded and closed statements stay as they were. Fixed
+        fees apply to every calendar month and are prorated by day in partial ranges.
       </p>
     </form>
   );

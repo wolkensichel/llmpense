@@ -2,11 +2,20 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
-import { parsePeriod, periodOf, type StatementLine } from "@llmpense/core";
+import {
+  aggregateLinesByProject,
+  CURRENCY_NAMES,
+  ECB_ACKNOWLEDGEMENT,
+  parsePeriod,
+  periodOf,
+  rateNote,
+  showModelNames,
+  type StatementLine,
+} from "@llmpense/core";
 import { getCurrentOrg } from "@/lib/org.ts";
 import { clientStatement } from "@/lib/statements.ts";
 import { brandingOf } from "@/lib/branding.ts";
-import { compactNum, count, longDate, monthLabel, usd } from "@/lib/format.ts";
+import { compactNum, count, longDate, money, monthLabel } from "@/lib/format.ts";
 import { PrintButton } from "@/components/print-button.tsx";
 
 /**
@@ -44,12 +53,17 @@ export default async function ClientStatementPage({ params }: Props) {
   if (!s) notFound();
 
   const brand = brandingOf(org);
-  const { lines, totals, terms, feeCoverage } = s.data;
+  const { totals, terms, feeCoverage, fx } = s.data;
+  // A display setting: closed statements keep their frozen lines; only how they are shown changes.
+  const models = showModelNames(org.showModelNames, s.client.modelNames);
+  const lines = models ? s.data.lines : aggregateLinesByProject(s.data.lines, terms.currency);
   const usage = lines.filter((l) => l.kind === "usage");
   const fee = lines.find((l) => l.kind === "fixed_fee");
   const lastDay = new Date(Math.min(period.end.getTime(), now.getTime()) - 1);
+  const amt = (n: number | null) => (n === null ? "–" : money(n, terms.currency));
   const amountOf = (l: StatementLine) =>
-    terms.billingMode === "fixed" ? "Included" : terms.billingMode === "absorbed" ? "No charge" : usd(l.billedUsd);
+    terms.billingMode === "fixed" ? "Included" : terms.billingMode === "absorbed" ? "No charge" : amt(l.billed);
+  const note = rateNote(fx);
 
   return (
     <div className="min-h-dvh bg-bg pb-10 print:bg-white print:pb-0">
@@ -66,6 +80,12 @@ export default async function ClientStatementPage({ params }: Props) {
       {s.status === "draft" && (
         <p className="mx-auto mb-3 max-w-[210mm] px-4 text-[13px] text-ink-2 print:hidden">
           This statement is a draft and may still change. Close it to freeze the numbers before sending.
+        </p>
+      )}
+      {!fx && (
+        <p role="status" className="mx-auto mb-3 max-w-[210mm] px-4 text-[13px] text-loss-ink print:hidden">
+          No {terms.currency} exchange rate for {monthLabel(month)} yet, so amounts can't be shown. Run pnpm fx:sync or add a manual rate under
+          Settings &gt; Exchange rates.
         </p>
       )}
 
@@ -127,7 +147,7 @@ export default async function ClientStatementPage({ params }: Props) {
               <tr key={i} className="border-b border-[#e3e6ea] break-inside-avoid">
                 <td className="py-2 pr-3 align-top">
                   <span className="block font-medium">{l.project}</span>
-                  <span className="block text-[12px] text-[#767a83]">{l.model}</span>
+                  {models && l.model && <span className="block text-[12px] text-[#767a83]">{l.model}</span>}
                 </td>
                 <td className="num py-2 pr-3 text-right align-top">{count(l.requests)}</td>
                 <td className="num hidden py-2 pr-3 text-right align-top sm:table-cell print:table-cell">
@@ -141,11 +161,11 @@ export default async function ClientStatementPage({ params }: Props) {
                 <td className="py-2 pr-3" colSpan={2}>
                   <span className="block font-medium">{fee.project}</span>
                   <span className="block text-[12px] text-[#767a83]">
-                    {feeCoverage === "to_date" ? `Prorated to ${longDate(now)} of ${usd(terms.fixedFeeUsd)} per month` : "Covers all AI usage in the period"}
+                    {feeCoverage === "to_date" ? `Prorated to ${longDate(now)} of ${amt(terms.fixedFee)} per month` : "Covers all AI usage in the period"}
                   </span>
                 </td>
                 <td className="hidden sm:table-cell print:table-cell" />
-                <td className="num py-2 text-right align-top whitespace-nowrap">{usd(fee.billedUsd)}</td>
+                <td className="num py-2 text-right align-top whitespace-nowrap">{amt(fee.billed)}</td>
               </tr>
             )}
           </tbody>
@@ -157,26 +177,28 @@ export default async function ClientStatementPage({ params }: Props) {
               <>
                 <div className="flex justify-between gap-4 text-[#4b4f58]">
                   <dt>Usage</dt>
-                  <dd>{usd(totals.usageBilledUsd)}</dd>
+                  <dd>{amt(totals.usageBilled)}</dd>
                 </div>
                 <div className="flex justify-between gap-4 text-[#4b4f58]">
                   <dt>Fixed fee</dt>
-                  <dd>{usd(totals.fixedFeeUsd)}</dd>
+                  <dd>{amt(totals.fixedFee)}</dd>
                 </div>
               </>
             )}
             <div className="flex justify-between gap-4 border-t border-[#15171c] pt-2 text-[15px] font-semibold">
-              <dt>Total (USD)</dt>
-              <dd>{usd(totals.totalBilledUsd)}</dd>
+              <dt>Total ({terms.currency})</dt>
+              <dd>{amt(totals.totalBilled)}</dd>
             </div>
           </dl>
         </div>
+        {note && <p className="mt-2 text-right text-[11px] leading-4 text-[#767a83] break-inside-avoid">{note}</p>}
 
         <footer className="mt-12 border-t border-[#e3e6ea] pt-4 text-[12px] text-[#767a83] break-inside-avoid">
           {brand.footer && <p className="mb-2 whitespace-pre-line text-[#4b4f58]">{brand.footer}</p>}
           <p>
-            {brand.name} · Statement for {s.client.name}, {monthLabel(month)}. Amounts in US dollars; usage is counted per calendar month in UTC.
+            {brand.name} · Statement for {s.client.name}, {monthLabel(month)}. Amounts in {CURRENCY_NAMES[terms.currency]} ({terms.currency}); usage is counted per calendar month in UTC.
           </p>
+          {note && fx?.source === "ecb" && <p className="mt-1">{ECB_ACKNOWLEDGEMENT}</p>}
         </footer>
       </article>
     </div>

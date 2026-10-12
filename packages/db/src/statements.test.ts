@@ -34,8 +34,8 @@ const ev = (client: string, o: Partial<UsageEventInput> = {}): UsageEventInput =
   ...o,
 });
 
-async function setBilling(slug: string, billingMode: "markup" | "fixed" | "passthrough" | "absorbed", markupPct = "0", fixedFeeUsd = "0") {
-  await db.update(clients).set({ billingMode, markupPct, fixedFeeUsd }).where(eq(clients.id, ids[slug]!));
+async function setBilling(slug: string, billingMode: "markup" | "fixed" | "passthrough" | "absorbed", markupPct = "0", fixedFee = "0") {
+  await db.update(clients).set({ billingMode, markupPct, fixedFee }).where(eq(clients.id, ids[slug]!));
 }
 
 describe.skipIf(!hasDb)("statements (db)", () => {
@@ -49,7 +49,7 @@ describe.skipIf(!hasDb)("statements (db)", () => {
       ["northwind", "fixed", "0", "300"],
       ["globex", "passthrough", "0", "0"],
     ] as const) {
-      const [c] = await db.insert(clients).values({ orgId, slug, name: slug.toUpperCase(), billingMode: mode, markupPct: markup, fixedFeeUsd: fee }).returning();
+      const [c] = await db.insert(clients).values({ orgId, slug, name: slug.toUpperCase(), billingMode: mode, markupPct: markup, fixedFee: fee }).returning();
       ids[slug] = c!.id;
     }
     await recordEvents(db, { orgId, source: "seed" }, [
@@ -89,7 +89,7 @@ describe.skipIf(!hasDb)("statements (db)", () => {
     const s = (await getClientStatement(db, orgId, ids.acme!, AUG, IN_SEP))!;
     expect(s.status).toBe("closed");
     expect(s.closedAt).toEqual(IN_SEP);
-    expect(s.data.terms).toEqual({ billingMode: "markup", markupPct: 30, fixedFeeUsd: 0 });
+    expect(s.data.terms).toEqual({ billingMode: "markup", markupPct: 30, fixedFee: 0, currency: "USD" });
     expect(s.data.totals).toMatchObject({ requests: 3, costUsd: 17.5, totalBilledUsd: 22.75, fixedFeeUsd: 0 });
     expect(s.data.lines.map((l) => l.billedUsd)).toEqual([6.5, 13, 3.25]);
     expect(s.client.name).toBe("ACME");
@@ -113,9 +113,9 @@ describe.skipIf(!hasDb)("statements (db)", () => {
   });
 
   it("closes all drafts of a month, including the fixed fee line", async () => {
-    expect(await closeAllDrafts(db, orgId, "2026-09", IN_SEP)).toBe(0);
-    expect(await closeAllDrafts(db, orgId, AUG, IN_SEP)).toBe(3);
-    expect(await closeAllDrafts(db, orgId, AUG, IN_SEP)).toBe(0);
+    expect(await closeAllDrafts(db, orgId, "2026-09", IN_SEP)).toEqual({ closed: 0, noRate: 0 });
+    expect(await closeAllDrafts(db, orgId, AUG, IN_SEP)).toEqual({ closed: 3, noRate: 0 });
+    expect(await closeAllDrafts(db, orgId, AUG, IN_SEP)).toEqual({ closed: 0, noRate: 0 });
     const list = await listMonthStatements(db, orgId, AUG, IN_SEP);
     expect(list.map((s) => s.status)).toEqual(["closed", "closed", "closed"]);
     const nw = list.find((s) => s.client.id === ids.northwind)!;

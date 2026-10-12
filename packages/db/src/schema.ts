@@ -4,18 +4,20 @@ import {
   bigserial,
   boolean,
   check,
+  date,
   index,
   integer,
   jsonb,
   numeric,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { BILLING_MODES, PROVIDERS, STATEMENT_LINE_KINDS, STATEMENT_STATUSES } from "@llmpense/core";
+import { BILLING_MODES, CURRENCIES, MODEL_NAME_DISPLAY, PROVIDERS, STATEMENT_LINE_KINDS, STATEMENT_STATUSES } from "@llmpense/core";
 
 // Money columns are numeric; drizzle returns them as strings to avoid float loss.
 const usd = (name: string) => numeric(name, { precision: 18, scale: 8 });
@@ -29,6 +31,13 @@ export const budgetScopeEnum = pgEnum("budget_scope", ["org", "client", "project
 export const alertKindEnum = pgEnum("alert_kind", ["budget", "fixed_fee_loss"]);
 export const statementStatusEnum = pgEnum("statement_status", STATEMENT_STATUSES);
 export const statementLineKindEnum = pgEnum("statement_line_kind", STATEMENT_LINE_KINDS);
+export const currencyEnum = pgEnum("currency", CURRENCIES);
+export const modelNameDisplayEnum = pgEnum("model_name_display", MODEL_NAME_DISPLAY);
+
+/** An amount in a client's billing currency (JPY has no decimals, the others two). */
+const money = (name: string) => numeric(name, { precision: 18, scale: 2 });
+/** Units of a currency per 1 EUR or per 1 USD. */
+const fxRate = (name: string) => numeric(name, { precision: 20, scale: 10 });
 
 /** Tenant. Most self-hosted installs have one. */
 export const orgs = pgTable("orgs", {
@@ -44,6 +53,8 @@ export const orgs = pgTable("orgs", {
   brandFooter: text("brand_footer"),
   /** http(s) URL of a logo image. */
   brandLogoUrl: text("brand_logo_url"),
+  /** Default for client-facing statements: name the model on each line, or one line per project. */
+  showModelNames: boolean("show_model_names").notNull().default(true),
   createdAt: createdAt(),
 });
 
@@ -57,8 +68,12 @@ export const clients = pgTable(
     slug: text("slug").notNull(),
     billingMode: billingModeEnum("billing_mode").notNull().default("markup"),
     markupPct: numeric("markup_pct", { precision: 7, scale: 2 }).notNull().default("0"),
-    /** Monthly flat fee covering AI usage, for billing_mode = fixed. */
-    fixedFeeUsd: usd("fixed_fee_usd").notNull().default("0"),
+    /** Currency statements are billed in. Usage is metered and billed in USD and converted per month. */
+    billingCurrency: currencyEnum("billing_currency").notNull().default("USD"),
+    /** Monthly flat fee covering AI usage, for billing_mode = fixed, in the billing currency. */
+    fixedFee: usd("fixed_fee").notNull().default("0"),
+    /** Model names on client-facing statements; null follows the org default. */
+    modelNames: modelNameDisplayEnum("model_names"),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
@@ -229,15 +244,26 @@ export const statements = pgTable(
     clientName: text("client_name"),
     billingMode: billingModeEnum("billing_mode"),
     markupPct: numeric("markup_pct", { precision: 7, scale: 2 }),
-    /** The monthly fee in effect when the statement was closed. */
-    monthlyFeeUsd: usd("monthly_fee_usd"),
+    /** The monthly fee in effect when the statement was closed, in the billing currency. */
+    monthlyFee: usd("monthly_fee"),
+    /** Billing currency and the exchange rate (1 USD = fx_rate units) frozen at close. */
+    currency: currencyEnum("currency"),
+    fxRate: fxRate("fx_rate"),
+    /** Date of the rate (YYYY-MM-DD); null for USD. */
+    fxDate: date("fx_date", { mode: "string" }),
+    /** identity (USD), ecb, manual or seed. */
+    fxSource: text("fx_source"),
     requests: bigint("requests", { mode: "number" }),
     tokens: bigint("tokens", { mode: "number" }),
     costUsd: usd("cost_usd"),
     usageBilledUsd: usd("usage_billed_usd"),
-    /** Fixed fee billed for the month. */
+    /** USD equivalent of the fixed fee billed for the month. */
     fixedFeeUsd: usd("fixed_fee_usd"),
     totalBilledUsd: usd("total_billed_usd"),
+    /** Amounts in the billing currency, as printed on the statement. */
+    usageBilled: money("usage_billed"),
+    fixedFee: money("fixed_fee"),
+    totalBilled: money("total_billed"),
     closedAt: timestamp("closed_at", { withTimezone: true }),
     reopenedAt: timestamp("reopened_at", { withTimezone: true }),
     createdAt: createdAt(),
@@ -263,6 +289,46 @@ export const statementLines = pgTable(
     cacheWriteTokens: bigint("cache_write_tokens", { mode: "number" }).notNull().default(0),
     costUsd: usd("cost_usd").notNull().default("0"),
     billedUsd: usd("billed_usd").notNull().default("0"),
+    /** Billed in the statement's currency, rounded to its minor unit. */
+    billed: money("billed"),
   },
   (t) => [index("statement_lines_statement").on(t.statementId, t.position)],
+);
+
+/**
+ * Euro foreign exchange reference rates: units of `currency` per 1 EUR on `date`. Filled by
+ * `pnpm fx:sync` and on demand by the web app from the ECB feeds; `source` is `ecb`, or
+ * `seed (demo data, not ECB)` for rows the demo seed inserts. Shared by all orgs.
+ */
+export const fxRates = pgTable(
+  "fx_rates",
+  {
+    date: date("date", { mode: "string" }).notNull(),
+    currency: text("currency").notNull(),
+    ratePerEur: fxRate("rate_per_eur").notNull(),
+    source: text("source").notNull(),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.date, t.currency] }), check("fx_rates_positive", sql`${t.ratePerEur} > 0`)],
+);
+
+/**
+ * Manual exchange rates per org (1 USD = rate_per_usd units), valid from `effective_from`.
+ * They take precedence over the reference rates, e.g. for offline installs or contractual rates.
+ */
+export const fxRateOverrides = pgTable(
+  "fx_rate_overrides",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").notNull().references(() => orgs.id, { onDelete: "cascade" }),
+    currency: currencyEnum("currency").notNull(),
+    ratePerUsd: fxRate("rate_per_usd").notNull(),
+    effectiveFrom: date("effective_from", { mode: "string" }).notNull(),
+    note: text("note"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("fx_rate_overrides_org_currency_from").on(t.orgId, t.currency, t.effectiveFrom),
+    check("fx_rate_overrides_positive", sql`${t.ratePerUsd} > 0`),
+  ],
 );

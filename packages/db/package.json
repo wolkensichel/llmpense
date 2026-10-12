@@ -11,6 +11,7 @@
     "generate": "drizzle-kit generate",
     "migrate": "tsx --env-file-if-exists=../../.env src/migrate.ts",
     "seed": "tsx --env-file-if-exists=../../.env src/seed.ts",
+    "fx:sync": "tsx --env-file-if-exists=../../.env src/sync-fx.ts",
     "test": "vitest run",
     "typecheck": "tsc -p ."
   },

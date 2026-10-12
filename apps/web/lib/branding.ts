@@ -5,6 +5,8 @@ export interface Branding {
   address: string | null;
   footer: string | null;
   logoUrl: string | null;
+  /** Default for client-facing statements: name the model on each line. */
+  showModelNames: boolean;
 }
 
 /** Agency details for client-facing statements; the display name falls back to the org name. */
@@ -14,6 +16,7 @@ export function brandingOf(org: {
   brandAddress: string | null;
   brandFooter: string | null;
   brandLogoUrl: string | null;
+  showModelNames?: boolean;
 }): Branding {
   const clean = (v: string | null) => (v && v.trim() ? v.trim() : null);
   return {
@@ -21,6 +24,7 @@ export function brandingOf(org: {
     address: clean(org.brandAddress),
     footer: clean(org.brandFooter),
     logoUrl: clean(org.brandLogoUrl),
+    showModelNames: org.showModelNames ?? true,
   };
 }
 
@@ -35,6 +39,7 @@ export const brandingSchema = z.object({
   brandName: z.string().trim().min(1, "Enter the name clients should see.").max(120, "The name is limited to 120 characters."),
   brandAddress: optionalText(500, "The address"),
   brandFooter: optionalText(1000, "The footer"),
+  showModelNames: z.boolean().default(true),
   brandLogoUrl: optionalText(2000, "The logo URL").refine((v) => v === null || /^https?:\/\/[^\s"'<>]+$/i.test(v), {
     message: "The logo URL must start with http:// or https://.",
   }),

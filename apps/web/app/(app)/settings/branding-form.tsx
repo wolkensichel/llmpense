@@ -56,6 +56,21 @@ export function BrandingForm({ branding }: { branding: Branding }) {
           />
         </label>
       </div>
+      <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-line p-3 hover:bg-surface-2">
+        <input
+          type="checkbox"
+          name="showModelNames"
+          defaultChecked={branding.showModelNames}
+          className="mt-1 size-4 shrink-0 accent-[var(--accent)]"
+        />
+        <span>
+          <span className="block text-sm font-medium">Show model names on client statements</span>
+          <span className="block text-[13px] text-ink-2">
+            When off, statements and their CSV show one line per project with requests, tokens and amounts summed. Totals don&apos;t
+            change. Each client can override this in its billing settings.
+          </span>
+        </span>
+      </label>
       <div className="flex flex-wrap items-center gap-3">
         <button className="btn btn-primary" disabled={pending}>
           {pending ? "Saving…" : "Save branding"}

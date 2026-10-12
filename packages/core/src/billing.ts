@@ -50,6 +50,15 @@ const utcMonthStart = (d: Date, offsetMonths = 0) => new Date(Date.UTC(d.getUTCF
  * 15 of 30 days of a month earns half of it. Partial days count fractionally.
  */
 export function proratedFixedFee(monthlyFee: number, start: Date, end: Date): number {
+  return proratedFixedFeeUsd(monthlyFee, start, end, () => 1);
+}
+
+/**
+ * The same rule for a fee set in another currency: each month's share is converted to USD with
+ * that month's rate. `usdPerUnit(period)` returns how many USD one unit of the fee's currency is
+ * worth in the `YYYY-MM` period (1 for USD); a month without a rate contributes nothing.
+ */
+export function proratedFixedFeeUsd(monthlyFee: number, start: Date, end: Date, usdPerUnit: (period: string) => number | null): number {
   if (!(monthlyFee > 0) || end <= start) return 0;
   let total = 0;
   for (let m = utcMonthStart(start); m < end; m = utcMonthStart(m, 1)) {
@@ -57,7 +66,9 @@ export function proratedFixedFee(monthlyFee: number, start: Date, end: Date): nu
     const from = Math.max(m.getTime(), start.getTime());
     const to = Math.min(next.getTime(), end.getTime());
     if (to <= from) continue;
-    total += monthlyFee * ((to - from) / (next.getTime() - m.getTime()));
+    const factor = usdPerUnit(m.toISOString().slice(0, 7));
+    if (factor === null || !(factor > 0)) continue;
+    total += monthlyFee * ((to - from) / (next.getTime() - m.getTime())) * factor;
   }
   return roundUsd(total);
 }

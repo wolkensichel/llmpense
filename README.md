@@ -66,11 +66,18 @@ your app ──► LLMpense proxy ──► OpenAI / Anthropic / Gemini
 - **Fixed-fee loss alerts** when a fixed-fee client's month-to-date provider cost exceeds
   the part of its fee earned so far.
 - **Monthly statements** per client and calendar month (UTC). Drafts are computed live;
-  closing a month freezes its totals and line items, and a closed month can be reopened.
+  closing a month freezes its totals, line items and exchange rate, and a closed month can be
+  reopened. Close, reopen and "close all drafts" ask for confirmation first.
+- **Billing currencies**: bill clients in USD, EUR, GBP, JPY, CNY or CHF. Costs, margins and
+  dashboards stay in USD; statements convert each line with the month's ECB euro reference
+  rate (last business day of the month), and fixed fees are set in the client's currency.
+  Rates come from `pnpm fx:sync` or a daily fetch by the dashboard; manual rates per agency
+  take precedence, for offline installs or contractual rates.
 - **Client-facing statements** with your agency's name, address, logo and footer, showing
-  only what the client is billed. Print-ready, so "Save as PDF" gives a clean A4 document.
-- **Accounting CSV**: line items per statement, one row per client per month, and the
-  monthly usage export per client.
+  only what the client is billed, in its currency. Model names can be hidden per agency or
+  per client (one line per project). Print-ready, so "Save as PDF" gives a clean A4 document.
+- **Accounting CSV**: line items per statement, one row per client per month (with currency,
+  rate and USD equivalent), and the monthly usage export per client.
 
 ## Quick start
 
@@ -134,6 +141,22 @@ price lists:
 - [Portkey Models](https://github.com/Portkey-AI/models)
 
 Their license notices are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## Exchange rates
+
+Source: European Central Bank,
+[euro foreign exchange reference rates](https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html).
+The ECB quotes rates per euro; LLMpense calculates USD cross rates from them via EUR.
+
+```bash
+pnpm fx:sync                    # last 90 days (run daily, e.g. from cron)
+pnpm fx:sync --feed=history     # everything since 1999, to backfill old months
+```
+
+The dashboard also fetches the 90-day feed at most once a day when the newest stored rate is
+older than today, waiting at most 1.5 seconds before it uses the stored rates. Set
+`FX_AUTO_FETCH=0` to turn that off; manual rates go under Settings > Exchange rates. The demo
+seed inserts a few demo rates (labelled as seed data) only when no ECB rates are stored.
 
 ## License
 
