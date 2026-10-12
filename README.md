@@ -43,7 +43,7 @@ phone and desktop.
 </picture>
 
 <p align="center">
-  <img alt="Client-facing statement, ready to print or save as PDF" src=".github/screenshots/client-statement.png" width="520">
+  <img alt="Client-facing statement in EUR, ready to print or save as PDF" src=".github/screenshots/client-statement.png" width="520">
 </p>
 
 ## How it works
