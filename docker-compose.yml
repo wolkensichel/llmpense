@@ -1,18 +1,87 @@
+# Full stack: `docker compose up -d --build` starts Postgres, applies migrations, then starts
+# the dashboard (port 3000) and the proxy (port 8787). For local development run only the
+# database with `docker compose up -d --wait postgres` and use `pnpm dev`.
+#
+# Settings are read from `.env` next to this file (see .env.example). DATABASE_URL in `.env`
+# points at localhost for `pnpm dev`; inside the containers it is set below.
+
+x-database-url: &database-url postgres://llmpense:${POSTGRES_PASSWORD:-llmpense}@postgres:5432/llmpense
+
 services:
   postgres:
     image: postgres:17-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: llmpense
-      POSTGRES_PASSWORD: llmpense
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-llmpense}
       POSTGRES_DB: llmpense
     ports:
-      - "5433:5432"
+      # Localhost only: reachable by `pnpm dev` and psql on this machine, not from the network.
+      - "127.0.0.1:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U llmpense"]
       interval: 2s
       retries: 30
+
+  # Applies database migrations, then exits. Also runs the other database scripts:
+  #   docker compose run --rm migrate src/seed.ts      demo data (prints an API key)
+  #   docker compose run --rm migrate src/sync-fx.ts   fetch ECB exchange rates now
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/proxy/Dockerfile
+    image: llmpense-proxy
+    working_dir: /app/packages/db
+    entrypoint: ["/app/apps/proxy/node_modules/.bin/tsx"]
+    command: ["src/migrate.ts"]
+    environment:
+      DATABASE_URL: *database-url
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    image: llmpense-web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: *database-url
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-}
+      PROXY_PUBLIC_URL: ${PROXY_PUBLIC_URL:-}
+      PROXY_PORT: ${PROXY_PORT:-8787}
+      HELICONE_WEBHOOK_SECRET: ${HELICONE_WEBHOOK_SECRET:-}
+      FX_AUTO_FETCH: ${FX_AUTO_FETCH:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  proxy:
+    # Same image as migrate; the build section keeps Compose from pulling a public image by this name.
+    build:
+      context: .
+      dockerfile: apps/proxy/Dockerfile
+    image: llmpense-proxy
+    restart: unless-stopped
+    ports:
+      - "${PROXY_PORT:-8787}:8787"
+    environment:
+      DATABASE_URL: *database-url
+      PROXY_PORT: 8787
+      # Empty means the provider's public API.
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      GEMINI_BASE_URL: ${GEMINI_BASE_URL:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
 
 volumes:
   pgdata:

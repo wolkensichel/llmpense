@@ -25,7 +25,7 @@ runs `pnpm licenses:check` and fails on anything outside the allowlist in
 
 ```bash
 cp .env.example .env
-docker compose up -d --wait
+docker compose up -d --wait postgres
 pnpm install
 pnpm db:migrate && pnpm db:seed
 pnpm dev
