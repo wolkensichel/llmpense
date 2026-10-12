@@ -42,6 +42,11 @@ phone and desktop.
   <img alt="Monthly statements: what each client is billed per month, with month close" src=".github/screenshots/desktop-statements-light.png">
 </picture>
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/screenshots/desktop-results-dark.png">
+  <img alt="Cost per result: cost per resolved ticket including failed runs, success rate, value per dollar and the cheapest model" src=".github/screenshots/desktop-results-light.png">
+</picture>
+
 <p align="center">
   <img alt="Client-facing statement in EUR, ready to print or save as PDF" src=".github/screenshots/client-statement.png" width="520">
 </p>

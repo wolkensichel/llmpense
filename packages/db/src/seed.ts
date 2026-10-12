@@ -37,7 +37,7 @@ const orgId = org!.id;
 // project (model names hidden); the others follow the org default and name the models.
 // Payment terms: Northwind pays within 30 days, Globex within 7, the others use the org's 14.
 const CLIENTS = [
-  { slug: "acme-retail", name: "Acme Retail", billingMode: "markup", markupPct: "30", fixedFee: "0", currency: "USD", modelNames: "show", terms: null,
+  { slug: "acme-retail", name: "Acme Retail", billingMode: "markup", markupPct: "50", fixedFee: "0", currency: "USD", modelNames: "show", terms: null,
     projects: [["support-bot", "Support bot"], ["product-search", "Product search"]], scale: 1.0 },
   { slug: "northwind-legal", name: "Northwind Legal", billingMode: "fixed", markupPct: "0", fixedFee: "130", currency: "EUR", modelNames: null, terms: 30,
     projects: [["contract-review", "Contract review"]], scale: 1.6 },
