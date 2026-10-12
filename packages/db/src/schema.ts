@@ -17,7 +17,17 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { BILLING_MODES, CURRENCIES, MODEL_NAME_DISPLAY, PROVIDERS, STATEMENT_LINE_KINDS, STATEMENT_STATUSES } from "@llmpense/core";
+import {
+  BILLING_MODES,
+  CURRENCIES,
+  DEFAULT_NUMBER_FORMAT,
+  DEFAULT_PAYMENT_TERMS_DAYS,
+  MODEL_NAME_DISPLAY,
+  PROVIDERS,
+  STATEMENT_ACTIONS,
+  STATEMENT_LINE_KINDS,
+  STATEMENT_STATUSES,
+} from "@llmpense/core";
 
 // Money columns are numeric; drizzle returns them as strings to avoid float loss.
 const usd = (name: string) => numeric(name, { precision: 18, scale: 8 });
@@ -33,6 +43,7 @@ export const statementStatusEnum = pgEnum("statement_status", STATEMENT_STATUSES
 export const statementLineKindEnum = pgEnum("statement_line_kind", STATEMENT_LINE_KINDS);
 export const currencyEnum = pgEnum("currency", CURRENCIES);
 export const modelNameDisplayEnum = pgEnum("model_name_display", MODEL_NAME_DISPLAY);
+export const statementActionEnum = pgEnum("statement_action", STATEMENT_ACTIONS);
 
 /** An amount in a client's billing currency (JPY has no decimals, the others two). */
 const money = (name: string) => numeric(name, { precision: 18, scale: 2 });
@@ -55,6 +66,23 @@ export const orgs = pgTable("orgs", {
   brandLogoUrl: text("brand_logo_url"),
   /** Default for client-facing statements: name the model on each line, or one line per project. */
   showModelNames: boolean("show_model_names").notNull().default(true),
+  /** Statement numbers: literal text plus {YYYY}/{YY} and one counter {N…}, e.g. ST-{YYYY}-{NNNN}. */
+  statementNumberFormat: text("statement_number_format").notNull().default(DEFAULT_NUMBER_FORMAT),
+  /** Days from the issue date to the due date; clients can override it. */
+  paymentTermsDays: integer("payment_terms_days").notNull().default(DEFAULT_PAYMENT_TERMS_DAYS),
+  /** Accounting exports (files only). Empty until configured. */
+  xeroAccountCode: text("xero_account_code"),
+  xeroTaxType: text("xero_tax_type"),
+  datevConsultantNumber: integer("datev_consultant_number"),
+  datevClientNumber: integer("datev_client_number"),
+  /** G/L account length of the DATEV client (4 to 8). */
+  datevAccountLength: integer("datev_account_length").notNull().default(4),
+  /** First month of the fiscal year (1 to 12). */
+  datevFiscalYearStart: integer("datev_fiscal_year_start").notNull().default(1),
+  datevRevenueAccount: text("datev_revenue_account"),
+  datevDebtorAccount: text("datev_debtor_account"),
+  /** BU-Schlüssel (tax key); empty for revenue accounts with automatic tax. */
+  datevTaxKey: text("datev_tax_key"),
   createdAt: createdAt(),
 });
 
@@ -74,6 +102,8 @@ export const clients = pgTable(
     fixedFee: usd("fixed_fee").notNull().default("0"),
     /** Model names on client-facing statements; null follows the org default. */
     modelNames: modelNameDisplayEnum("model_names"),
+    /** Payment terms in days; null follows the org default. */
+    paymentTermsDays: integer("payment_terms_days"),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
@@ -266,9 +296,51 @@ export const statements = pgTable(
     totalBilled: money("total_billed"),
     closedAt: timestamp("closed_at", { withTimezone: true }),
     reopenedAt: timestamp("reopened_at", { withTimezone: true }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    /** Assigned on the first close, gap-free per org; kept when the statement is reopened. */
+    number: text("number"),
+    /** Issue date (the close date, or the date given when marking it as sent) and due date. */
+    issueDate: date("issue_date", { mode: "string" }),
+    dueDate: date("due_date", { mode: "string" }),
+    /** Payment terms frozen at close. */
+    paymentTermsDays: integer("payment_terms_days"),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex("statements_client_period").on(t.clientId, t.period), index("statements_org_period").on(t.orgId, t.period)],
+  (t) => [
+    uniqueIndex("statements_client_period").on(t.clientId, t.period),
+    index("statements_org_period").on(t.orgId, t.period),
+    uniqueIndex("statements_org_number").on(t.orgId, t.number).where(sql`${t.number} is not null`),
+  ],
+);
+
+/**
+ * Statement number counters, one row per org and year (year 0 for formats without a year).
+ * Incremented with an upsert inside the close transaction, so the row lock serializes concurrent
+ * closes and a rolled-back close leaves no gap.
+ */
+export const statementCounters = pgTable(
+  "statement_counters",
+  {
+    orgId: uuid("org_id").notNull().references(() => orgs.id, { onDelete: "cascade" }),
+    year: integer("year").notNull(),
+    lastValue: integer("last_value").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.orgId, t.year] })],
+);
+
+/** Lifecycle history: one row per status change of a statement. */
+export const statementEvents = pgTable(
+  "statement_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    statementId: uuid("statement_id").notNull().references(() => statements.id, { onDelete: "cascade" }),
+    action: statementActionEnum("action").notNull(),
+    fromStatus: statementStatusEnum("from_status").notNull(),
+    toStatus: statementStatusEnum("to_status").notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull(),
+  },
+  (t) => [index("statement_events_statement").on(t.statementId, t.at)],
 );
 
 /** Frozen line items of a closed statement: one per project and model, plus the fixed fee. */

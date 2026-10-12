@@ -76,8 +76,25 @@ your app ──► LLMpense proxy ──► OpenAI / Anthropic / Gemini
 - **Client-facing statements** with your agency's name, address, logo and footer, showing
   only what the client is billed, in its currency. Model names can be hidden per agency or
   per client (one line per project). Print-ready, so "Save as PDF" gives a clean A4 document.
+- **Statement lifecycle**: draft → closed → sent → paid, with a timestamp and history entry for
+  every change. A sent or paid statement has to be unmarked step by step before it can be
+  reopened. Mark one statement on its page or several at once on the month overview, which
+  filters by status; every step asks for confirmation.
+- **Statement numbers and due dates**: the first close assigns a gap-free number per agency in a
+  configurable format (e.g. `ST-{YYYY}-{NNNN}` gives `ST-2026-0001`); reopening keeps it. The
+  issue date is the close date (it can be changed when marking as sent), the due date adds the
+  payment terms (agency default 14 days, overridable per client), and sent statements past
+  their due date show as overdue.
+- **PDF download**: the client-facing statement as a server-generated A4 PDF with embedded fonts,
+  your branding and logo (PNG or JPEG), number, dates, line items, totals and the exchange-rate
+  note, e.g. `ST-2026-0001-acme-retail-2026-09.pdf`.
 - **Accounting CSV**: line items per statement, one row per client per month (with currency,
-  rate and USD equivalent), and the monthly usage export per client.
+  rate, USD equivalent, statement number and dates), and the monthly usage export per client.
+- **Accounting exports** (files only, no connection to these services): a Xero sales invoice
+  import CSV and a DATEV Buchungsstapel (EXTF format, Windows-1252) with one invoice or posting
+  per closed, sent or paid statement of a month. Account codes, tax rate or tax key and DATEV
+  consultant and client numbers are set under Settings > Accounting export. Lexware Office has no
+  file import for sales invoices; upload the PDFs there instead.
 
 ## Quick start
 

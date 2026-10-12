@@ -1,11 +1,15 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { formatStatementNumber, validateNumberFormat } from "@llmpense/core";
 import type { Branding } from "@/lib/branding.ts";
 import { saveBranding } from "./branding-actions.ts";
 
-export function BrandingForm({ branding }: { branding: Branding }) {
+export function BrandingForm({ branding, numbering }: { branding: Branding; numbering: { format: string; paymentTermsDays: number } }) {
   const [state, action, pending] = useActionState(saveBranding, undefined);
+  const [format, setFormat] = useState(numbering.format);
+  const check = validateNumberFormat(format);
+  const year = new Date().getUTCFullYear();
   return (
     <form action={action} className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
@@ -71,6 +75,47 @@ export function BrandingForm({ branding }: { branding: Branding }) {
           </span>
         </span>
       </label>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block">
+          <span className="mb-1.5 block text-sm font-medium">Statement number format</span>
+          <input
+            name="statementNumberFormat"
+            required
+            maxLength={40}
+            value={format}
+            onChange={(e) => setFormat(e.target.value)}
+            spellCheck={false}
+            autoCapitalize="off"
+            aria-describedby="number-format-hint"
+            className="field font-mono text-[14px]"
+          />
+          <span id="number-format-hint" className={`mt-1 block text-[13px] ${check.ok ? "text-ink-3" : "text-loss-ink"}`}>
+            {check.ok ? (
+              <>
+                Numbers look like <span className="num font-medium text-ink-2">{formatStatementNumber(format, year, 1)}</span>.{" "}
+                {"{YYYY}"} or {"{YY}"} is the year, {"{NNNN}"} the counter; with a year it restarts every year. Assigned on the first close, never reused.
+              </>
+            ) : (
+              check.reason
+            )}
+          </span>
+        </label>
+        <label className="block">
+          <span className="mb-1.5 block text-sm font-medium">Payment terms (days)</span>
+          <input
+            name="paymentTermsDays"
+            type="number"
+            inputMode="numeric"
+            required
+            min={0}
+            max={365}
+            step={1}
+            defaultValue={numbering.paymentTermsDays}
+            className="field num"
+          />
+          <span className="mt-1 block text-[13px] text-ink-3">Due date = issue date + these days. Clients can override it in their billing settings.</span>
+        </label>
+      </div>
       <div className="flex flex-wrap items-center gap-3">
         <button className="btn btn-primary" disabled={pending}>
           {pending ? "Saving…" : "Save branding"}

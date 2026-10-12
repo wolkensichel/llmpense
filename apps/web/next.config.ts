@@ -21,7 +21,10 @@ const config: NextConfig = {
   outputFileTracingRoot: root,
   turbopack: { root },
   transpilePackages: ["@llmpense/core", "@llmpense/db"],
-  serverExternalPackages: ["postgres"],
+  // PDFKit reads its font metrics from its own package directory at runtime.
+  serverExternalPackages: ["postgres", "pdfkit"],
+  // Fonts embedded in statement PDFs, read from disk by lib/statement-pdf.ts.
+  outputFileTracingIncludes: { "/statement/**/pdf": ["./assets/fonts/*.ttf"] },
   poweredByHeader: false,
   // Hosts other than localhost (e.g. a phone on the LAN) that may load dev-server assets.
   // Comma-separated in DEV_ORIGINS; without it, `next dev` only serves scripts to localhost.

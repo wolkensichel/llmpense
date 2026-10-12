@@ -7,14 +7,15 @@ import { roundUsd } from "./pricing.ts";
  *
  * A statement is a `draft` (computed live from usage events) until it is closed. Closing
  * freezes the terms, the exchange rate, totals and line items; a closed statement never changes
- * again unless it is reopened, which returns it to a live draft.
+ * again unless it is reopened, which returns it to a live draft. Closed statements can then be
+ * marked as sent and paid (see invoicing.ts); both keep the frozen snapshot.
  *
  * Amounts: provider cost and the per-event billed amounts are USD. A client billed in another
  * currency gets each line converted with the month's rate and rounded to the currency's minor
  * unit; the statement total is the sum of the rounded lines. The fixed fee is set in the billing
  * currency and converted to USD for margins.
  */
-export const STATEMENT_STATUSES = ["draft", "closed"] as const;
+export const STATEMENT_STATUSES = ["draft", "closed", "sent", "paid"] as const;
 export type StatementStatus = (typeof STATEMENT_STATUSES)[number];
 
 export const STATEMENT_LINE_KINDS = ["usage", "fixed_fee"] as const;
@@ -285,7 +286,7 @@ export interface StoredStatement {
   status: StatementStatus;
   closedAt: Date | null;
   reopenedAt: Date | null;
-  /** The frozen statement, including its exchange rate; present only while closed. */
+  /** The frozen statement, including its exchange rate; present unless it is a draft. */
   snapshot: StatementData | null;
 }
 
@@ -310,7 +311,7 @@ export function canClose(period: string, now: Date): { ok: true } | { ok: false;
  * rate cannot be frozen.
  */
 export function freezeStatement(live: StatementData, closedAt: Date, previous?: StoredStatement | null): StoredStatement {
-  if (previous?.status === "closed") throw new Error("Statement is already closed");
+  if (previous && previous.status !== "draft") throw new Error("Statement is already closed");
   if (!live.fx) throw new Error(`No exchange rate for ${live.terms.currency} in ${live.period}`);
   return { status: "closed", closedAt, reopenedAt: previous?.reopenedAt ?? null, snapshot: structuredClone(live) };
 }
@@ -321,10 +322,10 @@ export function reopenStatement(stored: StoredStatement, at: Date): StoredStatem
   return { status: "draft", closedAt: null, reopenedAt: at, snapshot: null };
 }
 
-/** A closed statement shows its snapshot; anything else is computed live. */
+/** A closed, sent or paid statement shows its snapshot; a draft is computed live. */
 export function resolveStatement(stored: StoredStatement | null | undefined, live: () => StatementData): ResolvedStatement {
-  if (stored?.status === "closed" && stored.snapshot) {
-    return { status: "closed", closedAt: stored.closedAt, reopenedAt: stored.reopenedAt, data: stored.snapshot };
+  if (stored && stored.status !== "draft" && stored.snapshot) {
+    return { status: stored.status, closedAt: stored.closedAt, reopenedAt: stored.reopenedAt, data: stored.snapshot };
   }
   return { status: "draft", closedAt: null, reopenedAt: stored?.reopenedAt ?? null, data: live() };
 }

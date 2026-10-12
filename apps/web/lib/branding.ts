@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_PAYMENT_TERMS_DAYS, validateNumberFormat } from "@llmpense/core";
 
 export interface Branding {
   name: string;
@@ -46,3 +47,19 @@ export const brandingSchema = z.object({
 });
 
 export type BrandingInput = z.output<typeof brandingSchema>;
+
+/** Statement numbers and payment terms, saved with the branding. */
+export const numberingSchema = z.object({
+  statementNumberFormat: z
+    .string()
+    .trim()
+    .superRefine((v, ctx) => {
+      const r = validateNumberFormat(v);
+      if (!r.ok) ctx.addIssue({ code: "custom", message: r.reason });
+    }),
+  paymentTermsDays: z.coerce
+    .number({ message: "Payment terms must be a number of days." })
+    .int("Payment terms must be whole days.")
+    .min(0, "Payment terms can't be negative.")
+    .max(MAX_PAYMENT_TERMS_DAYS, `Payment terms are at most ${MAX_PAYMENT_TERMS_DAYS} days.`),
+});

@@ -19,6 +19,8 @@ export function BillingForm({
   currency,
   modelNames,
   orgShowModelNames,
+  paymentTermsDays,
+  orgPaymentTermsDays,
 }: {
   id: string;
   billingMode: BillingMode;
@@ -28,6 +30,9 @@ export function BillingForm({
   currency: Currency;
   modelNames: ModelNameDisplay | null;
   orgShowModelNames: boolean;
+  /** Override in days; null follows the org default. */
+  paymentTermsDays: number | null;
+  orgPaymentTermsDays: number;
 }) {
   const [state, action, pending] = useActionState(updateBilling, undefined);
   const [mode, setMode] = useState<BillingMode>(billingMode);
@@ -79,6 +84,21 @@ export function BillingForm({
             <option value="show">Show model names</option>
             <option value="hide">Hide, one line per project</option>
           </select>
+        </label>
+        <label className="block sm:col-span-2">
+          <span className="mb-1.5 block text-sm font-medium">Payment terms (days)</span>
+          <input
+            className="field num"
+            name="paymentTermsDays"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={365}
+            step={1}
+            defaultValue={paymentTermsDays ?? ""}
+            placeholder={`Default (${orgPaymentTermsDays})`}
+          />
+          <span className="mt-1 block text-[13px] text-ink-3">Leave empty to use the agency default. Applies when a statement is closed.</span>
         </label>
         <label className={mode === "markup" ? "" : "opacity-50"}>
           <span className="mb-1.5 block text-sm font-medium">Markup %</span>

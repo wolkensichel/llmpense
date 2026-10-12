@@ -11,6 +11,7 @@ import { KeyForm, PriceForm } from "./forms.tsx";
 import { IntegrationsSection } from "./integrations.tsx";
 import { BrandingSettings } from "./branding.tsx";
 import { ExchangeRatesSettings } from "./exchange-rates.tsx";
+import { AccountingExportSettings } from "./accounting-export.tsx";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -245,6 +246,7 @@ const anthropic = new Anthropic({
 
       <BrandingSettings />
       <ExchangeRatesSettings />
+      <AccountingExportSettings />
     </div>
   );
 }

@@ -143,3 +143,9 @@ SOFTWARE.
 - Data used: the daily, 90-day and historical XML feeds under https://www.ecb.europa.eu/stats/eurofxref/ (USD, GBP, JPY, CNY and CHF per EUR), fetched at run time by `pnpm fx:sync` and the web app; no rates are bundled. The test fixtures in `packages/core/src/fixtures/` are excerpts of these feeds.
 - Terms: https://www.ecb.europa.eu/services/disclaimer/html/index.en.html. Reproduction is permitted provided the information appears accurately and the ECB is cited as the source; modifications must be stated explicitly. The reference rates are published for information purposes only.
 - Modification: LLMpense calculates USD cross rates from the euro reference rates (target rate per EUR divided by the USD rate per EUR) and converts and rounds statement amounts with them. Statements that use an ECB rate print the source acknowledgement "Source: European Central Bank, euro foreign exchange reference rates. The USD rate is a cross rate calculated via EUR by LLMpense."
+
+## IBM Plex Sans (statement PDF font)
+
+- Project: https://github.com/IBM/plex
+- Files used: `IBMPlexSans-Regular.ttf` and `IBMPlexSans-SemiBold.ttf` in `apps/web/assets/fonts/`, embedded as subsets in the statement PDFs the web app generates.
+- License: SIL Open Font License 1.1, Copyright © 2017 IBM Corp. with Reserved Font Name "Plex". The full license text ships next to the fonts in `apps/web/assets/fonts/OFL.txt`.

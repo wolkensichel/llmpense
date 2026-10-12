@@ -1,19 +1,45 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Lock, TriangleAlert } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Clock, Lock, Send, TriangleAlert } from "lucide-react";
 import { ECB_ACKNOWLEDGEMENT, rateNote, shiftPeriod, type FxRate, type StatementData, type StatementStatus } from "@llmpense/core";
 import { compactNum, count, money, monthLabel, usd } from "@/lib/format.ts";
 import { EmptyState } from "./ui.tsx";
 
-export function StatusBadge({ status }: { status: StatementStatus }) {
-  return status === "closed" ? (
-    <span className="inline-flex items-center gap-1 rounded-md bg-accent-soft px-1.5 text-xs leading-5 font-medium whitespace-nowrap text-accent">
-      <Lock size={11} strokeWidth={2.25} aria-hidden />
-      Closed
-    </span>
-  ) : (
-    <span className="inline-flex items-center rounded-md border border-dashed border-line-strong px-1.5 text-xs leading-5 whitespace-nowrap text-ink-2">
-      Draft
-    </span>
+const BADGE = "inline-flex items-center gap-1 rounded-md px-1.5 text-xs leading-5 font-medium whitespace-nowrap";
+
+export const STATUS_LABELS: Record<StatementStatus, string> = { draft: "Draft", closed: "Closed", sent: "Sent", paid: "Paid" };
+
+/** Lifecycle status; a sent statement past its due date also gets an "Overdue" badge. */
+export function StatusBadge({ status, overdue = false }: { status: StatementStatus; overdue?: boolean }) {
+  const badge =
+    status === "closed" ? (
+      <span className={`${BADGE} bg-accent-soft text-accent`}>
+        <Lock size={11} strokeWidth={2.25} aria-hidden />
+        Closed
+      </span>
+    ) : status === "sent" ? (
+      <span className={`${BADGE} border border-accent text-accent`}>
+        <Send size={11} strokeWidth={2.25} aria-hidden />
+        Sent
+      </span>
+    ) : status === "paid" ? (
+      <span className={`${BADGE} bg-[color-mix(in_srgb,var(--profit)_16%,transparent)] text-profit-ink`}>
+        <Check size={12} strokeWidth={2.5} aria-hidden />
+        Paid
+      </span>
+    ) : (
+      <span className="inline-flex items-center rounded-md border border-dashed border-line-strong px-1.5 text-xs leading-5 whitespace-nowrap text-ink-2">
+        Draft
+      </span>
+    );
+  if (!overdue) return badge;
+  return (
+    <>
+      {badge}
+      <span className={`${BADGE} bg-loss-soft text-loss-ink`}>
+        <Clock size={11} strokeWidth={2.25} aria-hidden />
+        Overdue
+      </span>
+    </>
   );
 }
 

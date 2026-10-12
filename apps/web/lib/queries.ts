@@ -28,6 +28,8 @@ export interface ClientInfo {
   billingCurrency: Currency;
   /** Model names on client-facing statements; null follows the org default. */
   modelNames: ModelNameDisplay | null;
+  /** Payment terms override in days; null follows the org default. */
+  paymentTermsDays: number | null;
   /** Stable categorical color slot (1-8) by creation order; 0 = "other". */
   slot: number;
 }
@@ -47,6 +49,7 @@ export async function listClients(orgId: string): Promise<ClientInfo[]> {
     fixedFee: num(c.fixedFee),
     billingCurrency: c.billingCurrency,
     modelNames: c.modelNames,
+    paymentTermsDays: c.paymentTermsDays,
     slot: i < 8 ? i + 1 : 0,
   }));
 }

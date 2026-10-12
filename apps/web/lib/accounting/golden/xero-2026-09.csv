@@ -1,0 +1,7 @@
+*ContactName,EmailAddress,POAddressLine1,POAddressLine2,POAddressLine3,POAddressLine4,POCity,PORegion,POPostalCode,POCountry,*InvoiceNumber,Reference,*InvoiceDate,*DueDate,InventoryItemCode,*Description,*Quantity,*UnitAmount,Discount,*AccountCode,*TaxType,TrackingName1,TrackingOption1,TrackingName2,TrackingOption2,Currency,BrandingTheme
+Müller & Söhne GmbH,,,,,,,,,,ST-2026-0001,AI usage 2026-09,02/10/2026,16/10/2026,,"AI usage Sep 2026: Suche ""Pro"" (gpt-5-mini)",1,8.58,,200,Tax Exempt,,,,,EUR,
+Müller & Söhne GmbH,,,,,,,,,,ST-2026-0001,AI usage 2026-09,02/10/2026,16/10/2026,,AI usage Sep 2026: Support bot (gpt-5),1,34.42,,200,Tax Exempt,,,,,EUR,
+Müller & Söhne GmbH,,,,,,,,,,ST-2026-0001,AI usage 2026-09,02/10/2026,16/10/2026,,AI usage Sep 2026: Support bot (gpt-5-mini),1,105.97,,200,Tax Exempt,,,,,EUR,
+Acme Retail,,,,,,,,,,ST-2026-0002,AI usage 2026-09,02/10/2026,16/10/2026,,AI usage Sep 2026: Product search,1,1234.75,,200,Tax Exempt,,,,,USD,
+Acme Retail,,,,,,,,,,ST-2026-0002,AI usage 2026-09,02/10/2026,16/10/2026,,AI usage Sep 2026: Support bot,1,1.01,,200,Tax Exempt,,,,,USD,
+Tanaka KK,,,,,,,,,,ST-2026-0003,AI usage 2026-09,05/10/2026,04/11/2026,,"Fixed monthly fee, Sep 2026",1,20000,,200,Tax Exempt,,,,,JPY,

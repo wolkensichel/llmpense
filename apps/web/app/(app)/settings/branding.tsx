@@ -8,8 +8,8 @@ export async function BrandingSettings() {
   const org = await getCurrentOrg();
   return (
     <section id="branding" className="scroll-mt-28">
-      <Panel title="Statement branding" sub="Shown on the client-facing statements you print or save as PDF.">
-        <BrandingForm branding={brandingOf(org)} />
+      <Panel title="Statement branding" sub="Shown on the client-facing statements and PDFs, with the statement number and payment terms.">
+        <BrandingForm branding={brandingOf(org)} numbering={{ format: org.statementNumberFormat, paymentTermsDays: org.paymentTermsDays }} />
       </Panel>
     </section>
   );

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, FileDown } from "lucide-react";
 import {
   aggregateLinesByProject,
   CURRENCY_NAMES,
@@ -32,7 +32,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const org = await getCurrentOrg();
   const s = await clientStatement(org.id, clientId, month);
   // The title becomes the default file name for "Save as PDF".
-  return { title: { absolute: s ? `Statement ${month} ${s.client.name}` : "Statement" } };
+  return { title: { absolute: s ? `Statement ${s.invoice.number && s.status !== "draft" ? `${s.invoice.number} ` : ""}${month} ${s.client.name}` : "Statement" } };
 }
 
 const PRINT_CSS = `
@@ -64,6 +64,8 @@ export default async function ClientStatementPage({ params }: Props) {
   const amountOf = (l: StatementLine) =>
     terms.billingMode === "fixed" ? "Included" : terms.billingMode === "absorbed" ? "No charge" : amt(l.billed);
   const note = rateNote(fx);
+  const issued = s.status !== "draft";
+  const isoLong = (d: string) => longDate(new Date(`${d}T00:00:00Z`));
 
   return (
     <div className="min-h-dvh bg-bg pb-10 print:bg-white print:pb-0">
@@ -75,7 +77,12 @@ export default async function ClientStatementPage({ params }: Props) {
         >
           <ChevronLeft size={16} aria-hidden /> Back to statement
         </Link>
-        <PrintButton />
+        <div className="flex flex-wrap gap-2">
+          <a href={`/statement/${s.client.id}/${month}/pdf`} className="btn btn-quiet" download>
+            <FileDown size={16} aria-hidden /> Download PDF
+          </a>
+          <PrintButton />
+        </div>
       </div>
       {s.status === "draft" && (
         <p className="mx-auto mb-3 max-w-[210mm] px-4 text-[13px] text-ink-2 print:hidden">
@@ -109,10 +116,14 @@ export default async function ClientStatementPage({ params }: Props) {
           </div>
         </header>
 
-        <dl className="mt-8 grid grid-cols-2 gap-x-6 gap-y-3 border-y border-[#e3e6ea] py-4 sm:grid-cols-3">
-          <div className="col-span-2 sm:col-span-1">
+        <dl className="mt-8 grid grid-cols-2 gap-x-6 gap-y-3 border-y border-[#e3e6ea] py-4 sm:grid-cols-5 print:grid-cols-5">
+          <div className="col-span-2 sm:col-span-1 print:col-span-1">
             <dt className="text-[12px] text-[#767a83]">Client</dt>
             <dd className="font-medium">{s.client.name}</dd>
+          </div>
+          <div>
+            <dt className="text-[12px] text-[#767a83]">Statement no.</dt>
+            <dd className="num font-medium">{issued && s.invoice.number ? s.invoice.number : "–"}</dd>
           </div>
           <div>
             <dt className="text-[12px] text-[#767a83]">Period (UTC)</dt>
@@ -121,8 +132,12 @@ export default async function ClientStatementPage({ params }: Props) {
             </dd>
           </div>
           <div>
-            <dt className="text-[12px] text-[#767a83]">{s.status === "closed" ? "Issued" : "As of"}</dt>
-            <dd className="num">{longDate(s.closedAt ?? now)}</dd>
+            <dt className="text-[12px] text-[#767a83]">{issued ? "Issue date" : "As of"}</dt>
+            <dd className="num">{issued && s.invoice.issueDate ? isoLong(s.invoice.issueDate) : longDate(s.closedAt ?? now)}</dd>
+          </div>
+          <div>
+            <dt className="text-[12px] text-[#767a83]">Due date</dt>
+            <dd className="num">{issued && s.invoice.dueDate ? isoLong(s.invoice.dueDate) : "–"}</dd>
           </div>
         </dl>
 
@@ -196,7 +211,7 @@ export default async function ClientStatementPage({ params }: Props) {
         <footer className="mt-12 border-t border-[#e3e6ea] pt-4 text-[12px] text-[#767a83] break-inside-avoid">
           {brand.footer && <p className="mb-2 whitespace-pre-line text-[#4b4f58]">{brand.footer}</p>}
           <p>
-            {brand.name} · Statement for {s.client.name}, {monthLabel(month)}. Amounts in {CURRENCY_NAMES[terms.currency]} ({terms.currency}); usage is counted per calendar month in UTC.
+            {brand.name} · Statement {issued && s.invoice.number ? `${s.invoice.number} ` : ""}for {s.client.name}, {monthLabel(month)}. Amounts in {CURRENCY_NAMES[terms.currency]} ({terms.currency}); usage is counted per calendar month in UTC.
           </p>
           {note && fx?.source === "ecb" && <p className="mt-1">{ECB_ACKNOWLEDGEMENT}</p>}
         </footer>

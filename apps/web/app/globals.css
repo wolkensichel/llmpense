@@ -231,6 +231,7 @@ textarea {
 }
 .dtable .r {
   text-align: right;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 .dtable tbody tr:hover td {

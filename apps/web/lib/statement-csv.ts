@@ -5,7 +5,11 @@ export interface StatementForCsv {
   status: StatementStatus;
   client: { name: string; slug: string };
   data: StatementData;
+  /** Statement number and dates; empty columns when absent (drafts). */
+  invoice?: { number: string | null; issueDate: string | null; dueDate: string | null };
 }
+
+const invoiceCells = (s: StatementForCsv) => [s.invoice?.number ?? "", s.invoice?.issueDate ?? "", s.invoice?.dueDate ?? ""];
 
 const money = (n: number) => n.toFixed(2);
 const inCurrency = (n: number | null, c: Currency) => (n === null ? "" : n.toFixed(minorUnits(c)));
@@ -34,7 +38,11 @@ export function statementCsv(s: StatementForCsv, opts: { showModelNames?: boolea
     "cache_write_tokens",
     "currency",
     "amount",
+    "statement_number",
+    "issue_date",
+    "due_date",
   ];
+  const inv = invoiceCells(s);
   const rows: (string | number)[][] = lines.map((l) => [
     period,
     s.client.name,
@@ -50,6 +58,7 @@ export function statementCsv(s: StatementForCsv, opts: { showModelNames?: boolea
     l.cacheWriteTokens,
     c,
     inCurrency(l.billed, c),
+    ...inv,
   ]);
   const sum = (k: "inputTokens" | "outputTokens" | "cacheReadTokens" | "cacheWriteTokens") => lines.reduce((a, l) => a + l[k], 0);
   rows.push([
@@ -67,11 +76,12 @@ export function statementCsv(s: StatementForCsv, opts: { showModelNames?: boolea
     sum("cacheWriteTokens"),
     c,
     inCurrency(totals.totalBilled, c),
+    ...inv,
   ]);
   const note = rateNote(fx);
   if (note) {
     const source = fx?.source === "ecb" ? ". Source: European Central Bank euro reference rates, USD cross rate via EUR" : "";
-    rows.push([period, s.client.name, s.status, "exchange_rate", `${note}${source}`, "", "", "", "", "", "", "", c, ""]);
+    rows.push([period, s.client.name, s.status, "exchange_rate", `${note}${source}`, "", "", "", "", "", "", "", c, "", ...inv]);
   }
   return toCsv([header, ...rows]);
 }
@@ -96,6 +106,9 @@ export function monthCsv(period: string, list: StatementForCsv[]): string {
     "fx_rate",
     "fx_date",
     "fx_source",
+    "statement_number",
+    "issue_date",
+    "due_date",
   ];
   const rows = list.map((s) => {
     const c = s.data.terms.currency;
@@ -114,6 +127,7 @@ export function monthCsv(period: string, list: StatementForCsv[]): string {
       fx ? String(Number(fx.perUsd.toFixed(10))) : "",
       fx?.date ?? "",
       fx?.source ?? "",
+      ...invoiceCells(s),
     ];
   });
   return toCsv([header, ...rows]);

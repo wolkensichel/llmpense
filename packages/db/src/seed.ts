@@ -1,14 +1,14 @@
 /**
  * Demo data: one agency org with statement branding, four clients with different billing
  * modes and currencies (USD, EUR, GBP), a few demo exchange rates,
- * 60 days of traffic, budgets, last month's statements closed, and an API key printed
- * to stdout. Safe to re-run: it wipes the demo org.
+ * 60 days of traffic, budgets, last month's statements closed with numbers and then marked as
+ * sent or paid, and an API key printed to stdout. Safe to re-run: it wipes the demo org.
  */
 import { and, eq, gte, lte } from "drizzle-orm";
 import { createDb } from "./client.ts";
 import { generateApiKey } from "./keys.ts";
 import { evaluateAlerts, recordEvents } from "./record.ts";
-import { closeAllDrafts } from "./statements.ts";
+import { closeAllDrafts, markStatement } from "./statements.ts";
 import { apiKeys, budgets, clients, fxRates, orgs, projects } from "./schema.ts";
 import { SEED_RATE_SOURCE, type UsageEventInput } from "@llmpense/core";
 import { upsertEurRates } from "./fx.ts";
@@ -24,21 +24,24 @@ const [org] = await db
     slug: SLUG,
     brandName: "Demo Agency",
     brandAddress: "Example Street 1\n00100 Example City\nbilling@demo-agency.example",
-    brandFooter: "Demo Agency, a fictional company for demo purposes.\nPayment within 14 days of the statement date.",
+    brandFooter: "Demo Agency, a fictional company for demo purposes.\nPlease pay by the due date shown above.",
+    statementNumberFormat: "ST-{YYYY}-{NNNN}",
+    paymentTermsDays: 14,
   })
   .returning();
 const orgId = org!.id;
 
 // Fixed fees are in each client's billing currency. Globex's statements show one line per
 // project (model names hidden); the others follow the org default and name the models.
+// Payment terms: Northwind pays within 30 days, Globex within 7, the others use the org's 14.
 const CLIENTS = [
-  { slug: "acme-retail", name: "Acme Retail", billingMode: "markup", markupPct: "30", fixedFee: "0", currency: "USD", modelNames: "show",
+  { slug: "acme-retail", name: "Acme Retail", billingMode: "markup", markupPct: "30", fixedFee: "0", currency: "USD", modelNames: "show", terms: null,
     projects: [["support-bot", "Support bot"], ["product-search", "Product search"]], scale: 1.0 },
-  { slug: "northwind-legal", name: "Northwind Legal", billingMode: "fixed", markupPct: "0", fixedFee: "130", currency: "EUR", modelNames: null,
+  { slug: "northwind-legal", name: "Northwind Legal", billingMode: "fixed", markupPct: "0", fixedFee: "130", currency: "EUR", modelNames: null, terms: 30,
     projects: [["contract-review", "Contract review"]], scale: 1.6 },
-  { slug: "globex-health", name: "Globex Health", billingMode: "passthrough", markupPct: "0", fixedFee: "0", currency: "GBP", modelNames: "hide",
+  { slug: "globex-health", name: "Globex Health", billingMode: "passthrough", markupPct: "0", fixedFee: "0", currency: "GBP", modelNames: "hide", terms: 7,
     projects: [["intake-assistant", "Intake assistant"], ["summaries", "Visit summaries"]], scale: 0.7 },
-  { slug: "initech", name: "Initech", billingMode: "absorbed", markupPct: "0", fixedFee: "0", currency: "USD", modelNames: null,
+  { slug: "initech", name: "Initech", billingMode: "absorbed", markupPct: "0", fixedFee: "0", currency: "USD", modelNames: null, terms: null,
     projects: [["pilot", "Pilot"]], scale: 0.25 },
 ] as const;
 
@@ -54,6 +57,7 @@ for (const c of CLIENTS) {
       fixedFee: c.fixedFee,
       billingCurrency: c.currency,
       modelNames: c.modelNames,
+      paymentTermsDays: c.terms,
     })
     .returning();
   await db.insert(projects).values(c.projects.map(([slug, name]) => ({ orgId, clientId: row!.id, slug, name })));
@@ -165,11 +169,20 @@ await evaluateAlerts(db, orgId);
 const today = new Date(now);
 const closeDay = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 2, 9));
 const lastPeriod = lastMonth.toISOString().slice(0, 7);
-const closed = await closeAllDrafts(db, orgId, lastPeriod, closeDay < today ? closeDay : today);
+const closedAt = closeDay < today ? closeDay : today;
+const closed = await closeAllDrafts(db, orgId, lastPeriod, closedAt);
+
+// Then they went out: Acme has paid, Northwind (30 days) and Globex (7 days) are sent, and Globex is
+// overdue once its due date has passed. Initech is billed nothing and stays closed.
+const at = (hours: number) => new Date(Math.min(closedAt.getTime() + hours * 3_600_000, now));
+const clientId = async (slug: string) => (await db.query.clients.findFirst({ where: and(eq(clients.orgId, orgId), eq(clients.slug, slug)) }))!.id;
+const sentIds = [await clientId("acme-retail"), await clientId("northwind-legal"), await clientId("globex-health")];
+for (const id of sentIds) await markStatement(db, orgId, id, lastPeriod, "mark_sent", { now: at(2) });
+await markStatement(db, orgId, sentIds[0]!, lastPeriod, "mark_paid", { now: at(5 * 24) });
 
 const k = generateApiKey();
 await db.insert(apiKeys).values({ orgId, name: "Demo key", prefix: k.prefix, hash: k.hash });
 
-console.log(`seeded org ${orgId} with ${events.length} events, closed ${closed.closed} statements for ${lastPeriod}`);
+console.log(`seeded org ${orgId} with ${events.length} events, closed ${closed.closed} statements for ${lastPeriod}, 3 sent, 1 paid`);
 console.log(`demo API key: ${k.key}`);
 await db.$client.end();

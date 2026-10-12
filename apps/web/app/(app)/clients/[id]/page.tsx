@@ -9,7 +9,7 @@ import { clientBreakdown, clientDaily, clientMargins, clientMonths, getClient, l
 import { resolveRange } from "@/lib/range.ts";
 import { compactNum, count, delta, longDate, money, monthLabel, pct, usd } from "@/lib/format.ts";
 import { CurrencyTag, StatusBadge } from "@/components/statement.tsx";
-import type { Currency } from "@llmpense/core";
+import { isOverdue, type Currency } from "@llmpense/core";
 import { DailyChart, type Series } from "@/components/daily-chart.tsx";
 import { Breakdown } from "@/components/breakdown.tsx";
 import { BillingBadge, ClientDot, Delta, FrozenNote, LossTag, MarginBar, MarginBarLegend, Panel } from "@/components/ui.tsx";
@@ -56,6 +56,7 @@ export default async function ClientPage({ params, searchParams }: Props) {
   projectSlots.set("-", 0);
 
   const now = new Date();
+  const today = now.toISOString().slice(0, 10);
   const thisMonth = now.toISOString().slice(0, 7);
   const monthOptions = months.length ? months : [thisMonth];
   const statementMonths = [...new Set([thisMonth, ...months])].sort().reverse().slice(0, 6);
@@ -142,7 +143,7 @@ export default async function ClientPage({ params, searchParams }: Props) {
         <ul className="-my-1 divide-y divide-line">
           {statementMonths.map((m) => {
             const st = statuses.get(m);
-            const closed = st?.status === "closed";
+            const closed = !!st && st.status !== "draft";
             return (
               <li key={m}>
                 <Link
@@ -151,14 +152,14 @@ export default async function ClientPage({ params, searchParams }: Props) {
                 >
                   <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                     <span className="font-medium">{monthLabel(m)}</span>
-                    <StatusBadge status={closed ? "closed" : "draft"} />
+                    <StatusBadge status={st?.status ?? "draft"} overdue={!!st && isOverdue(st.status, st.dueDate, today)} />
                     {m === thisMonth && <span className="text-[12px] text-ink-3">in progress</span>}
                   </span>
                   <span className="flex shrink-0 items-center gap-1 text-[13px] text-ink-2">
                     {closed && st?.totalBilled != null && (
                       <span className="num">
                         {money(Number(st.totalBilled), st.currency ?? "USD")}
-                        <span className="hidden text-ink-3 sm:inline"> · closed {longDate(st.closedAt!)}</span>
+                        <span className="hidden text-ink-3 sm:inline"> · {st.number ?? `closed ${longDate(st.closedAt!)}`}</span>
                       </span>
                     )}
                     <ChevronRight size={16} className="text-ink-3" aria-hidden />
@@ -180,6 +181,8 @@ export default async function ClientPage({ params, searchParams }: Props) {
             currency={client.billingCurrency}
             modelNames={client.modelNames}
             orgShowModelNames={org.showModelNames}
+            paymentTermsDays={client.paymentTermsDays}
+            orgPaymentTermsDays={org.paymentTermsDays}
           />
         </Panel>
         <Panel title="Invoice export" sub="Requests, tokens, cost and billed amount per project and model for one month, as CSV.">
