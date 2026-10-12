@@ -1,6 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
-import { apiKeys, hashApiKey, recordEvents, type Db } from "@llmpense/db";
+import { apiKeys, hashApiKey, recordEvents, upsertOutcomes, type Db } from "@llmpense/db";
 import type { IngestDeps } from "./ingest.ts";
+import type { OutcomeDeps } from "./outcomes.ts";
 
 /** Database-backed key lookup and event recording shared by the ingest and integration endpoints. */
 export function dbIngestDeps(db: Db): IngestDeps {
@@ -34,4 +35,10 @@ export function dbIngestDeps(db: Db): IngestDeps {
       );
     },
   };
+}
+
+/** Database-backed key lookup and outcome upserts for the outcomes endpoint. */
+export function dbOutcomeDeps(db: Db): OutcomeDeps {
+  const { hash, findKey } = dbIngestDeps(db);
+  return { hash, findKey, upsert: (key, outcomes) => upsertOutcomes(db, key.orgId, outcomes) };
 }

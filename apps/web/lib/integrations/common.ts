@@ -5,6 +5,9 @@ export type Integration = (typeof INTEGRATIONS)[number];
 
 /** Attribution keys read from a tool's request metadata. */
 export const META_KEYS = { client: "llmpense_client", project: "llmpense_project", feature: "llmpense_feature" } as const;
+/** Metadata key and tag prefix (`run:<id>`) carrying the run id. */
+export const RUN_META_KEY = "llmpense_run";
+export const RUN_TAG = "run";
 
 /** Provider names used by gateways, mapped to LLMpense providers. Keys are lowercase. */
 const PROVIDER_ALIASES: Record<string, Provider> = {
@@ -125,6 +128,7 @@ export interface Attribution {
   client?: string;
   project?: string;
   feature?: string;
+  runId?: string;
 }
 
 const str = (v: unknown, max = 100): string | undefined => {
@@ -134,20 +138,20 @@ const str = (v: unknown, max = 100): string | undefined => {
 };
 
 /** Reads `client:<slug>` style tags. */
-function fromTags(tags: string[], name: string): string | undefined {
+function fromTags(tags: string[], name: string, max = 100): string | undefined {
   const prefix = `${name}:`;
   for (const t of tags) {
     if (typeof t === "string" && t.toLowerCase().startsWith(prefix)) {
-      const v = str(t.slice(prefix.length));
+      const v = str(t.slice(prefix.length), max);
       if (v) return v;
     }
   }
   return undefined;
 }
 
-function fromMeta(metadata: AttributionInput["metadata"], key: string): string | undefined {
+function fromMeta(metadata: AttributionInput["metadata"], key: string, max = 100): string | undefined {
   for (const m of metadata) {
-    const v = m ? str(m[key]) : undefined;
+    const v = m ? str(m[key], max) : undefined;
     if (v) return v;
   }
   return undefined;
@@ -160,6 +164,8 @@ function fromMeta(metadata: AttributionInput["metadata"], key: string): string |
  * 3. endpoint query parameter (`?client=`, `?project=`, `?feature=`)
  * 4. client only: the tool's team / end-user field
  * Anything left unset falls back to the API key's default client and project when stored.
+ * The run id comes from the `llmpense_run` metadata key, then a `run:<id>` tag (never from the
+ * endpoint URL, since it differs per request).
  */
 export function resolveAttribution(input: AttributionInput): Attribution {
   const pick = (field: keyof typeof META_KEYS) =>
@@ -171,6 +177,8 @@ export function resolveAttribution(input: AttributionInput): Attribution {
   if (project) out.project = project;
   const feature = pick("feature");
   if (feature) out.feature = feature;
+  const runId = fromMeta(input.metadata, RUN_META_KEY, 200) ?? fromTags(input.tags, RUN_TAG, 200);
+  if (runId) out.runId = runId;
   return out;
 }
 

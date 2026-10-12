@@ -43,6 +43,10 @@ Client, project and feature are resolved per request, first match wins:
 Unknown client and project slugs are created automatically, as with the proxy. A project
 applies only together with a client.
 
+The run id (for cost per result, see the main README) comes from the metadata key
+`llmpense_run`, then a `run:<id>` tag. It is never read from the endpoint URL, since it differs
+per request.
+
 ## LiteLLM
 
 LiteLLM's [Generic API callback](https://docs.litellm.ai/docs/observability/generic_api)
@@ -108,8 +112,9 @@ HELICONE_WEBHOOK_SECRET=...
 With it set, requests without a valid `helicone-signature` (HMAC-SHA256, compared in constant
 time) are rejected.
 
-The webhook payload has no custom properties, so attribution comes from the URL query
-parameters or the `user_id` (Helicone-User-Id) as client fallback. Use Helicone's property
+The documented webhook payload has no custom properties, so attribution comes from the URL
+query parameters or the `user_id` (Helicone-User-Id) as client fallback. If a payload carries a
+`properties` object, its `llmpense_*` keys (including `llmpense_run`) are read like metadata keys. Use Helicone's property
 filters with one webhook per client to split traffic. The payload has no cache breakdown,
 so all prompt tokens are priced as uncached input.
 

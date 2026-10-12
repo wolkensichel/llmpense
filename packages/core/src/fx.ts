@@ -163,6 +163,20 @@ export function selectRate(input: {
   return null;
 }
 
+/**
+ * The rate for one currency on one day (YYYY-MM-DD): a manual rate effective on or before that
+ * day, else the latest reference rate on or before it. Same precedence as `selectRate`, with the
+ * day as the cutoff instead of the month's end.
+ */
+export function selectDailyRate(input: {
+  currency: Currency;
+  day: string;
+  rates: readonly EurRate[];
+  overrides?: readonly RateOverride[];
+}): FxRate | null {
+  return selectRate({ currency: input.currency, period: input.day.slice(0, 7), today: input.day, rates: input.rates, overrides: input.overrides });
+}
+
 // ---------------------------------------------------------------- display
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

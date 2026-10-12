@@ -139,6 +139,7 @@ export async function recordEvents(db: Db, ctx: RecordContext, events: (UsageEve
       projectId,
       feature: e.feature ?? null,
       endUser: e.endUser ?? null,
+      runId: e.runId ?? null,
       ...usage,
       costUsd: String(costUsd),
       billedUsd: String(billed),

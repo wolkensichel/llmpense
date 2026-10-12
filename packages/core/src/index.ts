@@ -6,4 +6,5 @@ export * from "./invoicing.ts";
 export * from "./fx.ts";
 export * from "./ecb.ts";
 export * from "./headers.ts";
+export * from "./results.ts";
 export { loadBundledPrices } from "./bundled-prices.ts";

@@ -5,6 +5,8 @@ export const HEADERS = {
   project: "x-llmpense-project",
   feature: "x-llmpense-feature",
   endUser: "x-llmpense-end-user",
+  /** Caller-chosen id grouping the calls that work on one task (ticket, document, agent run). */
+  run: "x-llmpense-run",
   /** Extra JSON object stored as event metadata. */
   metadata: "x-llmpense-metadata",
 } as const;

@@ -235,6 +235,7 @@ describe.skipIf(!hasDb)("proxy integration", () => {
         "x-llmpense-project": "chatbot",
         "x-llmpense-feature": "chat",
         "x-llmpense-end-user": "user-42",
+        "x-llmpense-run": "ticket-4711",
         "x-llmpense-metadata": JSON.stringify({ run: "abc" }),
       },
       body: JSON.stringify(requestBody),
@@ -267,6 +268,7 @@ describe.skipIf(!hasDb)("proxy integration", () => {
     expect(up.headers.authorization).toBe("Bearer sk-upstream-secret");
     expect(up.headers["x-custom"]).toBe("kept");
     expect(Object.keys(up.headers).filter((h) => h.startsWith("x-llmpense-"))).toEqual([]);
+    expect(up.headers["x-llmpense-run"]).toBeUndefined();
     expect(up.headers["accept-encoding"]).toBe("identity");
     expect(JSON.parse(up.body)).toEqual({ ...requestBody, stream_options: { include_usage: true } });
 
@@ -278,6 +280,7 @@ describe.skipIf(!hasDb)("proxy integration", () => {
       apiKeyId: keyId,
       feature: "chat",
       endUser: "user-42",
+      runId: "ticket-4711",
       inputTokens: 100_000,
       outputTokens: 50_000,
       cacheReadTokens: 20_000,
@@ -305,7 +308,7 @@ describe.skipIf(!hasDb)("proxy integration", () => {
     });
     expect(((await res.json()) as { id: string }).id).toBe("chatcmpl-int2");
     const [ev] = await eventsFor("chatcmpl-int2");
-    expect(ev).toMatchObject({ inputTokens: 1000, outputTokens: 500, streamed: false, clientId: null, metadata: null });
+    expect(ev).toMatchObject({ inputTokens: 1000, outputTokens: 500, streamed: false, clientId: null, runId: null, metadata: null });
     expect(Number(ev!.costUsd)).toBeCloseTo(0.002, 8);
   });
 

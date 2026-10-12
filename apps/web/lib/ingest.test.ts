@@ -80,6 +80,17 @@ describe("handleIngest", () => {
     }
   });
 
+  it("passes runId through and rejects an empty or overlong one", async () => {
+    const d = deps();
+    const ok = await handleIngest(req({ events: [{ ...valid.events[0], runId: "ticket-4711" }] }), d);
+    expect(ok.status).toBe(200);
+    expect(d.record.mock.calls[0]![1][0]!.runId).toBe("ticket-4711");
+    for (const runId of ["", "x".repeat(201)]) {
+      const res = await handleIngest(req({ events: [{ ...valid.events[0], runId }] }), deps());
+      expect(res.status).toBe(400);
+    }
+  });
+
   it("coerces ISO timestamps to dates", async () => {
     const d = deps();
     await handleIngest(req({ events: [{ provider: "anthropic", model: "claude-haiku-4-5", ts: "2026-09-30T10:00:00Z" }] }), d);

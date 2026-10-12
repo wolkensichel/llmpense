@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CURRENCIES } from "./fx.ts";
 
 export const PROVIDERS = ["openai", "anthropic", "gemini", "azure", "bedrock", "vertex", "other"] as const;
 export type Provider = (typeof PROVIDERS)[number];
@@ -25,6 +26,8 @@ export const usageEventInputSchema = z.object({
   project: z.string().max(100).optional().describe("Project slug within the client"),
   feature: z.string().max(100).optional(),
   endUser: z.string().max(200).optional(),
+  /** Groups the calls that work on one task; outcomes are reported per run. */
+  runId: z.string().trim().min(1).max(200).optional(),
   inputTokens: z.number().int().nonnegative().default(0),
   outputTokens: z.number().int().nonnegative().default(0),
   cacheReadTokens: z.number().int().nonnegative().default(0),
@@ -40,4 +43,37 @@ export type UsageEventInput = z.infer<typeof usageEventInputSchema>;
 
 export const ingestBatchSchema = z.object({
   events: z.array(usageEventInputSchema).min(1).max(1000),
+});
+
+// ---------------------------------------------------------------- outcomes
+
+export const OUTCOME_STATUSES = ["success", "failure"] as const;
+export type OutcomeStatus = (typeof OUTCOME_STATUSES)[number];
+
+/** Outcome names are URL-safe identifiers such as `ticket_resolved` or `document_reviewed`. */
+export const OUTCOME_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,99}$/;
+
+/**
+ * The result of one run, reported after the fact. One run may have several outcomes with
+ * different names; reporting the same (runId, name) again replaces the earlier report.
+ */
+export const outcomeInputSchema = z.object({
+  runId: z.string().trim().min(1).max(200),
+  name: z.string().regex(OUTCOME_NAME_PATTERN, "Use letters, digits, _ . : or - (max 100 characters)"),
+  status: z.enum(OUTCOME_STATUSES),
+  /** What the result is worth, e.g. to the client. */
+  value: z
+    .object({
+      amount: z.number().nonnegative().max(1e12),
+      currency: z.enum(CURRENCIES),
+    })
+    .optional(),
+  /** When the outcome happened; defaults to the time it is first reported. */
+  ts: z.coerce.date().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+export type OutcomeInput = z.infer<typeof outcomeInputSchema>;
+
+export const outcomesBatchSchema = z.object({
+  outcomes: z.array(outcomeInputSchema).min(1).max(1000),
 });

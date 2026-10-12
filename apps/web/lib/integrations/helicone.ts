@@ -17,6 +17,8 @@ export const heliconePayloadSchema = z.looseObject({
   user_id: z.string().nullish(),
   model: z.string().nullish(),
   provider: z.string().nullish(),
+  /** Custom properties, when the payload carries them; read like metadata keys. */
+  properties: z.record(z.string(), z.unknown()).nullish(),
   metadata: z
     .looseObject({
       cost: z.number().nullish(),
@@ -70,7 +72,7 @@ export function mapHelicone(items: HeliconePayload[], query: QueryDefaults = {})
       provider,
       model: model.slice(0, 200),
       requestId: p.request_id.slice(0, 200),
-      ...resolveAttribution({ metadata: [], tags: [], query, fallbackClient: [endUser] }),
+      ...resolveAttribution({ metadata: [p.properties], tags: [], query, fallbackClient: [endUser] }),
       endUser: endUser?.slice(0, 200),
       inputTokens: int(m.promptTokens),
       outputTokens: int(m.completionTokens),

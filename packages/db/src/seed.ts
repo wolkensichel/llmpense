@@ -1,8 +1,9 @@
 /**
  * Demo data: one agency org with statement branding, four clients with different billing
- * modes and currencies (USD, EUR, GBP), a few demo exchange rates,
- * 60 days of traffic, budgets, last month's statements closed with numbers and then marked as
- * sent or paid, and an API key printed to stdout. Safe to re-run: it wipes the demo org.
+ * modes and currencies (USD, EUR, GBP), a few demo exchange rates, 60 days of traffic, runs
+ * with outcomes (tickets resolved, contracts reviewed, intakes completed), budgets, last
+ * month's statements closed with numbers and then marked as sent or paid, and an API key
+ * printed to stdout. Safe to re-run: it wipes the demo org.
  */
 import { and, eq, gte, lte } from "drizzle-orm";
 import { createDb } from "./client.ts";
@@ -10,7 +11,8 @@ import { generateApiKey } from "./keys.ts";
 import { evaluateAlerts, recordEvents } from "./record.ts";
 import { closeAllDrafts, markStatement } from "./statements.ts";
 import { apiKeys, budgets, clients, fxRates, orgs, projects } from "./schema.ts";
-import { SEED_RATE_SOURCE, type UsageEventInput } from "@llmpense/core";
+import { SEED_RATE_SOURCE, type OutcomeInput, type UsageEventInput } from "@llmpense/core";
+import { upsertOutcomes } from "./results.ts";
 import { upsertEurRates } from "./fx.ts";
 
 const db = createDb();
@@ -116,6 +118,103 @@ for (let i = 0; i < events.length; i += 1000) {
   await recordEvents(db, { orgId, source: "seed" }, events.slice(i, i + 1000));
 }
 
+// Runs and outcomes (cost per result). Each run is one task handled by one model in a few calls;
+// models differ in cost and success rate so the per-model comparison has something to show.
+// Runs whose last call is less than six hours old, and a few abandoned ones, have no outcome yet.
+type RunModel = { provider: UsageEventInput["provider"]; model: string; weight: number; success: number; calls: [number, number] };
+const RUN_FLOWS: {
+  client: string;
+  project: string;
+  feature: string;
+  outcome: string;
+  perDay: number;
+  value?: { amount: number; currency: "USD" | "EUR" | "GBP" };
+  input: [number, number];
+  output: [number, number];
+  models: RunModel[];
+}[] = [
+  {
+    client: "acme-retail", project: "support-bot", feature: "chat", outcome: "ticket_resolved", perDay: 14,
+    value: { amount: 4, currency: "USD" }, input: [6000, 16000], output: [250, 900],
+    models: [
+      { provider: "anthropic", model: "claude-sonnet-5-5", weight: 5, success: 0.87, calls: [2, 4] },
+      { provider: "openai", model: "gpt-5-mini", weight: 4, success: 0.72, calls: [3, 6] },
+      { provider: "anthropic", model: "claude-haiku-4-5", weight: 3, success: 0.8, calls: [2, 5] },
+      { provider: "gemini", model: "gemini-2.5-flash", weight: 0.3, success: 0.85, calls: [2, 4] },
+    ],
+  },
+  {
+    client: "northwind-legal", project: "contract-review", feature: "extract", outcome: "document_reviewed", perDay: 2,
+    value: { amount: 40, currency: "EUR" }, input: [10000, 22000], output: [600, 1600],
+    models: [
+      { provider: "anthropic", model: "claude-opus-5-5", weight: 2, success: 0.97, calls: [3, 5] },
+      { provider: "anthropic", model: "claude-sonnet-5-5", weight: 3, success: 0.91, calls: [3, 6] },
+      { provider: "openai", model: "gpt-5", weight: 1, success: 0.86, calls: [3, 6] },
+    ],
+  },
+  {
+    client: "globex-health", project: "intake-assistant", feature: "classify", outcome: "intake_completed", perDay: 8,
+    input: [3000, 9000], output: [200, 700],
+    models: [
+      { provider: "openai", model: "gpt-5-mini", weight: 3, success: 0.71, calls: [2, 5] },
+      { provider: "gemini", model: "gemini-2.5-flash", weight: 2, success: 0.82, calls: [2, 4] },
+      { provider: "anthropic", model: "claude-haiku-4-5", weight: 2, success: 0.79, calls: [2, 4] },
+    ],
+  },
+];
+const between = ([lo, hi]: [number, number]) => Math.round(lo + rand() * (hi - lo));
+const runEvents: UsageEventInput[] = [];
+const runOutcomes: OutcomeInput[] = [];
+let runSeq = 0;
+for (let d = 59; d >= 0; d--) {
+  const day = new Date(now - d * DAY);
+  const weekday = day.getUTCDay() % 6 === 0 ? 0.5 : 1;
+  for (const f of RUN_FLOWS) {
+    const n = Math.round(f.perDay * weekday * (0.8 + rand() * 0.4));
+    for (let i = 0; i < n; i++) {
+      const m = pick(f.models);
+      const runId = `${f.outcome.split("_")[0]}-${(++runSeq).toString().padStart(5, "0")}`;
+      let t = day.getTime() - rand() * DAY * 0.9;
+      const calls = between(m.calls);
+      for (let c = 0; c < calls; c++) {
+        const input = between(f.input);
+        const cached = c > 0 && rand() < 0.5 ? Math.round(input * 0.6) : 0;
+        runEvents.push({
+          ts: new Date(t),
+          provider: m.provider,
+          model: m.model,
+          client: f.client,
+          project: f.project,
+          feature: f.feature,
+          runId,
+          inputTokens: input - cached,
+          cacheReadTokens: cached,
+          cacheWriteTokens: 0,
+          outputTokens: between(f.output),
+          latencyMs: Math.round(600 + rand() * 5000),
+          status: 200,
+        });
+        t += 5_000 + rand() * 55_000;
+      }
+      const reportedAt = t + 120_000 + rand() * 2_400_000;
+      if (now - t < 6 * 3_600_000 || reportedAt > now || rand() < 0.03) continue;
+      const success = rand() < m.success;
+      runOutcomes.push({
+        runId,
+        name: f.outcome,
+        status: success ? "success" : "failure",
+        value: success && f.value ? f.value : undefined,
+        ts: new Date(reportedAt),
+        metadata: { seed: true },
+      });
+    }
+  }
+}
+for (let i = 0; i < runEvents.length; i += 1000) {
+  await recordEvents(db, { orgId, source: "seed" }, runEvents.slice(i, i + 1000));
+}
+await upsertOutcomes(db, orgId, runOutcomes);
+
 // A small fixed set of exchange rates (per 1 EUR) so the demo works offline: the last business
 // day of each seeded month and the latest business day so far. They are labelled as seed data
 // and never replace stored ECB rates; `pnpm fx:sync` or the web app's daily fetch overwrite them.
@@ -183,6 +282,6 @@ await markStatement(db, orgId, sentIds[0]!, lastPeriod, "mark_paid", { now: at(5
 const k = generateApiKey();
 await db.insert(apiKeys).values({ orgId, name: "Demo key", prefix: k.prefix, hash: k.hash });
 
-console.log(`seeded org ${orgId} with ${events.length} events, closed ${closed.closed} statements for ${lastPeriod}, 3 sent, 1 paid`);
+console.log(`seeded org ${orgId} with ${events.length + runEvents.length} events and ${runOutcomes.length} outcomes, closed ${closed.closed} statements for ${lastPeriod}, 3 sent, 1 paid`);
 console.log(`demo API key: ${k.key}`);
 await db.$client.end();

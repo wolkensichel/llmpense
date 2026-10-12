@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
+import Link from "next/link";
+import { appBase, proxyBase } from "@/lib/base-url.ts";
 import { HEADERS } from "@llmpense/core";
 import { getCurrentOrg } from "@/lib/org.ts";
 import { listApiKeys, listClients, listPriceOverrides, listProjects } from "@/lib/queries.ts";
@@ -14,19 +15,6 @@ import { ExchangeRatesSettings } from "./exchange-rates.tsx";
 import { AccountingExportSettings } from "./accounting-export.tsx";
 
 export const metadata: Metadata = { title: "Settings" };
-
-function proxyBase(): string {
-  const raw = (process.env.PROXY_PUBLIC_URL ?? `localhost:${process.env.PROXY_PORT ?? 8787}`).replace(/\/+$/, "");
-  return /^https?:\/\//.test(raw) ? raw : `http://${raw}`;
-}
-
-async function appBase(): Promise<string> {
-  if (process.env.APP_PUBLIC_URL) return process.env.APP_PUBLIC_URL.replace(/\/+$/, "");
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
-  const proto = (h.get("x-forwarded-proto") ?? "http").split(",")[0]!.trim();
-  return `${proto}://${host}`;
-}
 
 const rate = (v: string | null) => (v === null ? "–" : `$${Number(v)}`);
 
@@ -123,7 +111,7 @@ const anthropic = new Anthropic({
             <dd className="font-mono text-[13px] break-all">{proxy}/gemini</dd>
             <dt className="text-ink-2">Headers</dt>
             <dd className="text-[13px]">
-              <code>{HEADERS.key}</code> (required), <code>{HEADERS.client}</code>, <code>{HEADERS.project}</code>, <code>{HEADERS.feature}</code>
+              <code>{HEADERS.key}</code> (required), <code>{HEADERS.client}</code>, <code>{HEADERS.project}</code>, <code>{HEADERS.feature}</code>, <code>{HEADERS.run}</code> (see <Link href="/results" className="text-accent underline">Results</Link>)
             </dd>
           </dl>
           <div className="grid min-w-0 gap-3 xl:grid-cols-2">

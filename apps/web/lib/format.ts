@@ -25,6 +25,16 @@ export function usdFine(n: number): string {
   return Math.abs(n) >= 1 ? usd(n) : usd4.format(n);
 }
 
+const usd3 = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 3 });
+const usdSig = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumSignificantDigits: 2, maximumSignificantDigits: 3 });
+
+/** Unit costs such as cost per success: "$1.80", "$0.213", "$0.20", "$0.0042". */
+export function usdPer(n: number): string {
+  const a = Math.abs(n);
+  const s = a >= 1 ? usd2.format(n) : a >= 0.1 || a === 0 ? usd3.format(n) : usdSig.format(n);
+  return s.replace("-", "−");
+}
+
 export function count(n: number): string {
   return int.format(n);
 }

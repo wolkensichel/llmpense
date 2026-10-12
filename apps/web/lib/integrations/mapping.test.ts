@@ -225,3 +225,56 @@ describe("OpenRouter", () => {
     expect(mapOpenRouter(dup)).toMatchObject({ skipped: 1 });
   });
 });
+
+describe("run ids", () => {
+  it("prefers the llmpense_run metadata key over a run: tag and never reads the URL", () => {
+    const base = { metadata: [], tags: [], query: {}, fallbackClient: [] };
+    expect(resolveAttribution({ ...base, metadata: [{ llmpense_run: "ticket-1" }], tags: ["run:tag-1"] }).runId).toBe("ticket-1");
+    expect(resolveAttribution({ ...base, tags: ["RUN:tag-1"] }).runId).toBe("tag-1");
+    expect(resolveAttribution({ ...base, query: { client: "acme" } }).runId).toBeUndefined();
+    expect(resolveAttribution({ ...base, metadata: [{ llmpense_run: "x".repeat(300) }] }).runId).toHaveLength(200);
+  });
+
+  it("LiteLLM: reads the run id from request metadata or request tags", () => {
+    const meta = litellmPayloadSchema.parse({ id: "l1", model: "gpt-4o", metadata: { requester_metadata: { llmpense_run: "doc-9" } } });
+    expect(mapLiteLLM([meta]).events[0]!.runId).toBe("doc-9");
+    const tagged = litellmPayloadSchema.parse({ id: "l2", model: "gpt-4o", request_tags: ["client:acme", "run:doc-10"] });
+    expect(mapLiteLLM([tagged]).events[0]).toMatchObject({ client: "acme", runId: "doc-10" });
+    const none = litellmPayloadSchema.parse({ id: "l3", model: "gpt-4o" });
+    expect(mapLiteLLM([none]).events[0]!.runId).toBeUndefined();
+  });
+
+  it("Helicone: reads the run id from custom properties when the payload has them", () => {
+    const p = heliconePayloadSchema.parse({ ...heliconeFixture, properties: { llmpense_run: "intake-3" } });
+    expect(mapHelicone([p]).events[0]!.runId).toBe("intake-3");
+    expect(mapHelicone([heliconePayloadSchema.parse(heliconeFixture)]).events[0]!.runId).toBeUndefined();
+  });
+
+  it("OpenRouter: reads the run id from trace metadata or trace tags", () => {
+    const body = (attrs: Record<string, string>) =>
+      openrouterBodySchema.parse({
+        resourceSpans: [
+          {
+            scopeSpans: [
+              {
+                spans: [
+                  {
+                    traceId: "t1",
+                    spanId: "s1",
+                    attributes: [
+                      { key: "gen_ai.request.model", value: { stringValue: "openai/gpt-4o-mini" } },
+                      { key: "gen_ai.usage.input_tokens", value: { intValue: 10 } },
+                      { key: "gen_ai.usage.output_tokens", value: { intValue: 5 } },
+                      ...Object.entries(attrs).map(([key, v]) => ({ key, value: { stringValue: v } })),
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+    expect(mapOpenRouter(body({ "trace.metadata.llmpense_run": "run-77" })).events[0]!.runId).toBe("run-77");
+    expect(mapOpenRouter(body({ "trace.metadata.tags": "feature:chat, run:run-78" })).events[0]).toMatchObject({ feature: "chat", runId: "run-78" });
+  });
+});

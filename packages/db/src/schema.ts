@@ -23,6 +23,7 @@ import {
   DEFAULT_NUMBER_FORMAT,
   DEFAULT_PAYMENT_TERMS_DAYS,
   MODEL_NAME_DISPLAY,
+  OUTCOME_STATUSES,
   PROVIDERS,
   STATEMENT_ACTIONS,
   STATEMENT_LINE_KINDS,
@@ -44,6 +45,7 @@ export const statementLineKindEnum = pgEnum("statement_line_kind", STATEMENT_LIN
 export const currencyEnum = pgEnum("currency", CURRENCIES);
 export const modelNameDisplayEnum = pgEnum("model_name_display", MODEL_NAME_DISPLAY);
 export const statementActionEnum = pgEnum("statement_action", STATEMENT_ACTIONS);
+export const outcomeStatusEnum = pgEnum("outcome_status", OUTCOME_STATUSES);
 
 /** An amount in a client's billing currency (JPY has no decimals, the others two). */
 const money = (name: string) => numeric(name, { precision: 18, scale: 2 });
@@ -182,6 +184,8 @@ export const usageEvents = pgTable(
     projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
     feature: text("feature"),
     endUser: text("end_user"),
+    /** Caller-chosen run id grouping the calls of one task; outcomes join on it at query time. */
+    runId: text("run_id"),
     inputTokens: integer("input_tokens").notNull().default(0),
     outputTokens: integer("output_tokens").notNull().default(0),
     cacheReadTokens: integer("cache_read_tokens").notNull().default(0),
@@ -201,9 +205,42 @@ export const usageEvents = pgTable(
     index("usage_events_org_ts").on(t.orgId, t.ts),
     index("usage_events_org_client_ts").on(t.orgId, t.clientId, t.ts),
     index("usage_events_org_project_ts").on(t.orgId, t.projectId, t.ts),
+    index("usage_events_org_run").on(t.orgId, t.runId).where(sql`${t.runId} is not null`),
     uniqueIndex("usage_events_dedupe")
       .on(t.orgId, t.provider, t.requestId)
       .where(sql`${t.requestId} is not null`),
+  ],
+);
+
+/**
+ * How a run ended, reported after its usage (or before it). One row per org, run and outcome
+ * name; reporting the same name for a run again updates the row. Joined to usage_events by
+ * run id at query time, so the order of arrival does not matter.
+ */
+export const outcomes = pgTable(
+  "outcomes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").notNull().references(() => orgs.id, { onDelete: "cascade" }),
+    runId: text("run_id").notNull(),
+    name: text("name").notNull(),
+    status: outcomeStatusEnum("status").notNull(),
+    /** What the result is worth, in `value_currency`. */
+    valueAmount: numeric("value_amount", { precision: 18, scale: 4 }),
+    valueCurrency: currencyEnum("value_currency"),
+    /** When the outcome happened; metrics filter on it. */
+    ts: timestamp("ts", { withTimezone: true }).notNull().defaultNow(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("outcomes_org_run_name").on(t.orgId, t.runId, t.name),
+    index("outcomes_org_ts").on(t.orgId, t.ts),
+    check(
+      "outcomes_value_pair",
+      sql`(${t.valueAmount} is null and ${t.valueCurrency} is null) or (${t.valueAmount} is not null and ${t.valueCurrency} is not null)`,
+    ),
   ],
 );
 

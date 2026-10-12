@@ -63,6 +63,10 @@ your app ──► LLMpense proxy ──► OpenAI / Anthropic / Gemini
 - **Authoritative cost.** Prices are merged from four public price lists, with your
   own overrides and negotiated discounts on top (see [Price data](#price-data)).
 - **Budgets and alerts** per org, client or project.
+- **Cost per result**: group the calls of one task (a ticket, a document, an agent run) under a
+  run id, report how each run ended, and see what a successful result costs, failed attempts
+  included, per outcome, client, project and model, with success rates, value per dollar and runs
+  still waiting for an outcome (see [Cost per result](#cost-per-result)).
 - **Fixed-fee loss alerts** when a fixed-fee client's month-to-date provider cost exceeds
   the part of its fee earned so far.
 - **Monthly statements** per client and calendar month (UTC). Drafts are computed live;
@@ -125,6 +129,47 @@ const openai = new OpenAI({
 ```
 
 More SDK examples (Anthropic, Python, curl): [apps/proxy/README.md](apps/proxy/README.md).
+
+## Cost per result
+
+A **run** is one task, such as a support ticket or a reviewed contract. Give every LLM call of a
+run the same id, then report the run's **outcome** when it is done:
+
+```ts
+// 1. Tag each call with the run id (proxy header; ingest API field `runId`;
+//    gateways: metadata key `llmpense_run` or tag `run:<id>`).
+await openai.chat.completions.create(
+  { model: "gpt-5-mini", messages },
+  { headers: { "x-llmpense-run": "ticket-4711" } },
+);
+```
+
+```bash
+# 2. Report how the run ended (same API key, up to 1,000 outcomes per call).
+curl -X POST http://localhost:3000/api/v1/outcomes \
+  -H "Authorization: Bearer $LLMPENSE_KEY" \
+  -H "content-type: application/json" \
+  -d '{"outcomes":[{"runId":"ticket-4711","name":"ticket_resolved","status":"success",
+       "value":{"amount":4,"currency":"USD"}}]}'
+```
+
+- `name` is a short identifier (letters, digits, `_ . : -`), `status` is `success` or `failure`;
+  `value` (amount and currency: USD, EUR, GBP, JPY, CNY or CHF), `ts` and `metadata` are optional.
+- One run may report several outcomes with different names. Reporting the same run and name again
+  updates it; without `ts` the original time stays. Outcomes may arrive before the usage.
+- Responses: `200 {"received", "upserted"}`, `400` with zod `issues`, `401` for a missing or
+  unknown key.
+
+The Results page shows, per outcome name and for the selected range (by outcome date):
+
+- **Cost per success** = total cost of every run that reported the outcome, successful or failed,
+  divided by the successes. Also the average cost per run and the success rate.
+- **Value per $1** = values of successful outcomes in USD (each converted at the rate of its
+  outcome date) divided by the total cost.
+- Breakdowns by client, project and model (a run counts under one only when all its calls share
+  it; others show as "several"), the model with the lowest cost per success, and a "low sample"
+  mark for fewer than 20 runs.
+- Runs with usage but no outcome yet, with what they have cost so far.
 
 ## Already using a gateway?
 

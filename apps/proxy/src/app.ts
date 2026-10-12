@@ -203,6 +203,7 @@ interface Attribution {
   project?: string;
   feature?: string;
   endUser?: string;
+  runId?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -227,6 +228,7 @@ function readAttribution(h: Headers): Attribution {
     project: get(HEADERS.project, 100),
     feature: get(HEADERS.feature, 100),
     endUser: get(HEADERS.endUser, 200),
+    runId: get(HEADERS.run, 200),
     metadata,
   };
 }
@@ -291,6 +293,7 @@ function buildEvent(a: {
     project: at.project,
     feature: at.feature,
     endUser: at.endUser,
+    runId: at.runId,
     ...extracted.usage,
     latencyMs: a.latencyMs,
     status: a.upstream.status,

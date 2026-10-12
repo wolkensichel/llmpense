@@ -53,7 +53,8 @@ callback_settings:
             "llmpense_client": "${exampleClient}",
             "llmpense_project": "support-bot",
             "llmpense_feature": "chat",
-            # or: "tags": ["client:${exampleClient}", "project:support-bot"]
+            "llmpense_run": "ticket-4711",  # optional, for cost per result
+            # or: "tags": ["client:${exampleClient}", "project:support-bot", "run:ticket-4711"]
         }
     },
 )`;
@@ -70,7 +71,8 @@ HELICONE_WEBHOOK_SECRET=...`;
   "trace": {
     "llmpense_client": "${exampleClient}",
     "llmpense_project": "support-bot",
-    "llmpense_feature": "chat"
+    "llmpense_feature": "chat",
+    "llmpense_run": "ticket-4711"
   }
 }`;
 

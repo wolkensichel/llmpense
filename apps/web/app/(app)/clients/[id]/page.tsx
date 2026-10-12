@@ -14,6 +14,8 @@ import { DailyChart, type Series } from "@/components/daily-chart.tsx";
 import { Breakdown } from "@/components/breakdown.tsx";
 import { BillingBadge, ClientDot, Delta, FrozenNote, LossTag, MarginBar, MarginBarLegend, Panel } from "@/components/ui.tsx";
 import { BillingForm } from "./billing-form.tsx";
+import { PendingNote, ResultTable } from "@/components/results.tsx";
+import { resultsOverview } from "@/lib/results.ts";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -33,7 +35,7 @@ export default async function ClientPage({ params, searchParams }: Props) {
   const client = await getClient(org.id, id);
   if (!client) notFound();
 
-  const [margins, daily, byProject, byModel, byFeature, projects, months, statuses] = await Promise.all([
+  const [margins, daily, byProject, byModel, byFeature, projects, months, statuses, results] = await Promise.all([
     clientMargins(org.id, range),
     clientDaily(org.id, client, range),
     clientBreakdown(org.id, client.id, range, "project"),
@@ -42,6 +44,7 @@ export default async function ClientPage({ params, searchParams }: Props) {
     listProjects(org.id),
     clientMonths(org.id, client.id),
     clientStatementStatuses(getDb(), org.id, client.id),
+    resultsOverview({ orgId: org.id, range, clientId: id }),
   ]);
   const row = margins.clients.find((r) => r.client?.id === client.id)!;
   const cur = row.current;
@@ -129,6 +132,38 @@ export default async function ClientPage({ params, searchParams }: Props) {
         <Panel title="Features" sub="From the x-llmpense-feature header">
           <Breakdown rows={byFeature} labelHeader="Feature" />
         </Panel>
+      </div>
+
+      <div id="client-results" className="scroll-mt-28">
+      <Panel
+        title="Results"
+        sub={`Cost per successful result for ${client.name}'s runs, failed attempts included. By outcome date.`}
+        actions={
+          <Link href={`/results${q}`} className="inline-flex min-h-11 items-center text-sm font-medium text-accent hover:underline">
+            All results
+          </Link>
+        }
+      >
+        {results.names.length === 0 && results.pending.runs === 0 ? (
+          <p className="text-sm text-ink-2">
+            No runs with outcomes for this client in this range.{" "}
+            <Link href="/results" className="inline-flex min-h-11 items-center font-medium text-accent hover:underline">
+              How to send run ids and outcomes
+            </Link>
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {results.names.length > 0 && (
+              <ResultTable
+                rows={results.names}
+                labelHeader="Outcome"
+                href={(b) => `/results/${encodeURIComponent(b.name)}?${new URLSearchParams({ client: client.id, ...(q ? { range: range.key } : {}) })}`}
+              />
+            )}
+            <PendingNote {...results.pending} />
+          </div>
+        )}
+      </Panel>
       </div>
 
       <Panel

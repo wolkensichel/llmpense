@@ -32,6 +32,7 @@ docker build -f apps/proxy/Dockerfile -t llmpense-proxy .   # from the repo root
 | `x-llmpense-project` | no | Project slug within the client. |
 | `x-llmpense-feature` | no | Feature name, e.g. `chat`, `summarize`. |
 | `x-llmpense-end-user` | no | Your end user's id. |
+| `x-llmpense-run` | no | Run id grouping the calls of one task (max 200 characters). Report the run's outcome to `POST /api/v1/outcomes` to see cost per result. |
 | `x-llmpense-metadata` | no | JSON object stored on the event. |
 
 A key can also have a default client/project, so code that cannot set headers still gets

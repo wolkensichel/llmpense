@@ -5,6 +5,8 @@ import { resolveRange } from "@/lib/range.ts";
 import { compactNum, count, delta, pct, usd } from "@/lib/format.ts";
 import { DailyChart, type Series } from "@/components/daily-chart.tsx";
 import { AlertList } from "@/components/alert-list.tsx";
+import { ResultsCard } from "@/components/results.tsx";
+import { resultsOverview } from "@/lib/results.ts";
 import {
   BillingBadge,
   ClientDot,
@@ -25,10 +27,11 @@ export default async function OverviewPage({ searchParams }: { searchParams: SP 
   const sp = await searchParams;
   const range = resolveRange(sp.range);
   const org = await getCurrentOrg();
-  const [m, daily, alerts] = await Promise.all([
+  const [m, daily, alerts, results] = await Promise.all([
     clientMargins(org.id, range),
     dailyCostByClient(org.id, range),
     listAlerts(org.id, { unacknowledgedOnly: true, limit: 5 }),
+    resultsOverview({ orgId: org.id, range }),
   ]);
   const cur = m.total.current;
   const prev = m.total.previous;
@@ -116,6 +119,8 @@ export default async function OverviewPage({ searchParams }: { searchParams: SP 
           }
         />
       </section>
+
+      <ResultsCard {...results} q={q} />
 
       <Panel title="Daily provider cost" sub="Stacked by client, UTC days">
         {cur.requests === 0 ? (

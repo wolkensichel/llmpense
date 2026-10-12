@@ -2,16 +2,20 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Bell, ChartNoAxesColumn, Rows3, Settings2, UsersRound } from "lucide-react";
+import { Bell, ChartNoAxesColumn, Rows3, Settings2, Target, UsersRound } from "lucide-react";
 import { RANGE_KEYS, RANGE_LABELS, type RangeKey } from "@/lib/range.ts";
 
 const ITEMS = [
   { href: "/", label: "Overview", icon: ChartNoAxesColumn },
   { href: "/clients", label: "Clients", icon: UsersRound },
+  { href: "/results", label: "Results", icon: Target },
   { href: "/events", label: "Events", icon: Rows3 },
   { href: "/budgets", label: "Budgets", icon: Bell },
   { href: "/settings", label: "Settings", icon: Settings2 },
 ] as const;
+
+/** Phones keep five tabs: Results is reached from the overview's cost-per-result card. */
+const TAB_ITEMS = ITEMS.filter((i) => i.href !== "/results");
 
 /** Pages whose numbers do not depend on the global range. */
 const RANGELESS = ["/budgets", "/settings", "/statements"];
@@ -67,8 +71,8 @@ export function BottomTabs({ alertCount }: { alertCount: number }) {
       className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 backdrop-blur lg:hidden"
     >
       <ul className="grid grid-cols-5">
-        {ITEMS.map(({ href, label, icon: Icon }) => {
-          const active = isActive(pathname, href);
+        {TAB_ITEMS.map(({ href, label, icon: Icon }) => {
+          const active = isActive(pathname, href) || (href === "/" && isActive(pathname, "/results"));
           return (
             <li key={href}>
               <Link
