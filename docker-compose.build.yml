@@ -1,0 +1,25 @@
+# Builds the images from this checkout instead of pulling the published ones:
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+# The local images get their own names, so they never overwrite the published tags.
+
+services:
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/proxy/Dockerfile
+    image: llmpense-proxy:local
+    pull_policy: build
+
+  proxy:
+    build:
+      context: .
+      dockerfile: apps/proxy/Dockerfile
+    image: llmpense-proxy:local
+    pull_policy: build
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    image: llmpense-web:local
+    pull_policy: build

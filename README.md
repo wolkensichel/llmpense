@@ -111,13 +111,20 @@ Requirements: Docker with Compose.
 
 ```bash
 git clone https://github.com/wolkensichel/llmpense.git && cd llmpense
-cp .env.example .env              # set ADMIN_PASSWORD and SESSION_SECRET (see below)
-docker compose up -d --build      # dashboard http://localhost:3000, proxy http://localhost:8787
+cp .env.example .env    # set ADMIN_PASSWORD and SESSION_SECRET (see below)
+docker compose up -d    # dashboard http://localhost:3000, proxy http://localhost:8787
 ```
 
-This starts Postgres, applies the database migrations, then starts the dashboard and the proxy.
-Data lives in the `pgdata` volume. To update, pull and run the same `up` command again;
-migrations run on every start.
+This pulls the published images (`ghcr.io/wolkensichel/llmpense-web` and `llmpense-proxy`, for
+amd64 and arm64), starts Postgres, applies the database migrations, then starts the dashboard and
+the proxy. Data lives in the `pgdata` volume. To update, run `docker compose pull` and
+`docker compose up -d`; migrations run on every start. Set `LLMPENSE_VERSION` to pin a release.
+
+To build the images from your checkout instead:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
 
 Settings in `.env`:
 
@@ -125,6 +132,7 @@ Settings in `.env`:
 |---|---|
 | `ADMIN_PASSWORD`, `SESSION_SECRET` | Dashboard login. Set both whenever others can reach the server; empty opens the dashboard without a login. `SESSION_SECRET` needs 16+ characters. |
 | `POSTGRES_PASSWORD` | Database password (default `llmpense`). Set it before the first start; the database keeps the password it was created with. |
+| `LLMPENSE_VERSION` | Image tag: `latest` (default, newest release), a release such as `0.1.0`, or `main` for the newest commit. |
 | `WEB_PORT`, `PROXY_PORT` | Host ports (default 3000 and 8787). |
 | `APP_PUBLIC_URL`, `PROXY_PUBLIC_URL` | Public URLs shown in the setup snippets under Settings, e.g. behind a reverse proxy with HTTPS. |
 | `OPENAI_BASE_URL`, `ANTHROPIC_BASE_URL`, `GEMINI_BASE_URL` | Upstream APIs for the proxy (default: the providers' public APIs). |

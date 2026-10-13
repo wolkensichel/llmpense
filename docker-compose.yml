@@ -1,6 +1,8 @@
-# Full stack: `docker compose up -d --build` starts Postgres, applies migrations, then starts
-# the dashboard (port 3000) and the proxy (port 8787). For local development run only the
-# database with `docker compose up -d --wait postgres` and use `pnpm dev`.
+# Full stack: `docker compose up -d` starts Postgres, applies migrations, then starts the
+# dashboard (port 3000) and the proxy (port 8787) from the published images. To build the
+# images from this checkout instead, add docker-compose.build.yml (see that file).
+# For local development run only the database with `docker compose up -d --wait postgres`
+# and use `pnpm dev`.
 #
 # Settings are read from `.env` next to this file (see .env.example). DATABASE_URL in `.env`
 # points at localhost for `pnpm dev`; inside the containers it is set below.
@@ -29,10 +31,7 @@ services:
   #   docker compose run --rm migrate src/seed.ts      demo data (prints an API key)
   #   docker compose run --rm migrate src/sync-fx.ts   fetch ECB exchange rates now
   migrate:
-    build:
-      context: .
-      dockerfile: apps/proxy/Dockerfile
-    image: llmpense-proxy
+    image: ghcr.io/wolkensichel/llmpense-proxy:${LLMPENSE_VERSION:-latest}
     working_dir: /app/packages/db
     entrypoint: ["/app/apps/proxy/node_modules/.bin/tsx"]
     command: ["src/migrate.ts"]
@@ -43,10 +42,7 @@ services:
         condition: service_healthy
 
   web:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-    image: llmpense-web
+    image: ghcr.io/wolkensichel/llmpense-web:${LLMPENSE_VERSION:-latest}
     restart: unless-stopped
     ports:
       - "${WEB_PORT:-3000}:3000"
@@ -64,11 +60,7 @@ services:
         condition: service_completed_successfully
 
   proxy:
-    # Same image as migrate; the build section keeps Compose from pulling a public image by this name.
-    build:
-      context: .
-      dockerfile: apps/proxy/Dockerfile
-    image: llmpense-proxy
+    image: ghcr.io/wolkensichel/llmpense-proxy:${LLMPENSE_VERSION:-latest}
     restart: unless-stopped
     ports:
       - "${PROXY_PORT:-8787}:8787"
