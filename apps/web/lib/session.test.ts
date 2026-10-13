@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authEnabled, createSessionToken, SESSION_TTL_MS, verifySessionToken } from "./session.ts";
+import { authEnabled, authWarnings, createSessionToken, SESSION_TTL_MS, verifySessionToken } from "./session.ts";
 
 const KEY = "test-secret-at-least-16";
 
@@ -8,6 +8,21 @@ describe("authEnabled", () => {
     expect(authEnabled({ ADMIN_PASSWORD: "secret" })).toBe(true);
     expect(authEnabled({ ADMIN_PASSWORD: "" })).toBe(false);
     expect(authEnabled({})).toBe(false);
+  });
+});
+
+describe("authWarnings", () => {
+  it("warns when the dashboard is open", () => {
+    expect(authWarnings({})).toEqual([expect.stringContaining("without a login")]);
+  });
+
+  it("warns when a password is set without a usable session secret", () => {
+    expect(authWarnings({ ADMIN_PASSWORD: "pw" })).toEqual([expect.stringContaining("SESSION_SECRET")]);
+    expect(authWarnings({ ADMIN_PASSWORD: "pw", SESSION_SECRET: "short" })).toHaveLength(1);
+  });
+
+  it("is quiet when login is fully set up", () => {
+    expect(authWarnings({ ADMIN_PASSWORD: "pw", SESSION_SECRET: KEY })).toEqual([]);
   });
 });
 

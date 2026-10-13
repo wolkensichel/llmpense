@@ -10,6 +10,18 @@ export function authEnabled(env: Record<string, string | undefined> = process.en
   return Boolean(env.ADMIN_PASSWORD);
 }
 
+/** Problems with the login setup, printed once when the server starts (see instrumentation.ts). */
+export function authWarnings(env: Record<string, string | undefined> = process.env): string[] {
+  if (!authEnabled(env)) {
+    return ["ADMIN_PASSWORD is empty: the dashboard opens without a login for anyone who can reach this server."];
+  }
+  const s = env.SESSION_SECRET;
+  if (!s || s.length < 16) {
+    return ["ADMIN_PASSWORD is set but SESSION_SECRET is missing or shorter than 16 characters: sign-in will fail."];
+  }
+  return [];
+}
+
 const enc = new TextEncoder();
 
 function secret(): string {

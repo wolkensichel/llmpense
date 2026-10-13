@@ -11,10 +11,6 @@ try {
   // no root .env; rely on the process environment
 }
 
-if (!process.env.ADMIN_PASSWORD) {
-  console.warn("⚠ ADMIN_PASSWORD is empty: the dashboard opens without a login for anyone who can reach this server.");
-}
-
 const config: NextConfig = {
   output: "standalone",
   // Trace from the monorepo root so workspace packages land in the standalone output.
