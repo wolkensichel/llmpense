@@ -31,7 +31,7 @@ services:
   #   docker compose run --rm migrate src/seed.ts      demo data (prints an API key)
   #   docker compose run --rm migrate src/sync-fx.ts   fetch ECB exchange rates now
   migrate:
-    image: ghcr.io/wolkensichel/llmpense-proxy:${LLMPENSE_VERSION:-latest}
+    image: ghcr.io/wolkensichel/llmpense-proxy:${LLMPENSE_VERSION:-main}
     working_dir: /app/packages/db
     entrypoint: ["/app/apps/proxy/node_modules/.bin/tsx"]
     command: ["src/migrate.ts"]
@@ -42,7 +42,7 @@ services:
         condition: service_healthy
 
   web:
-    image: ghcr.io/wolkensichel/llmpense-web:${LLMPENSE_VERSION:-latest}
+    image: ghcr.io/wolkensichel/llmpense-web:${LLMPENSE_VERSION:-main}
     restart: unless-stopped
     ports:
       - "${WEB_PORT:-3000}:3000"
@@ -60,7 +60,7 @@ services:
         condition: service_completed_successfully
 
   proxy:
-    image: ghcr.io/wolkensichel/llmpense-proxy:${LLMPENSE_VERSION:-latest}
+    image: ghcr.io/wolkensichel/llmpense-proxy:${LLMPENSE_VERSION:-main}
     restart: unless-stopped
     ports:
       - "${PROXY_PORT:-8787}:8787"
