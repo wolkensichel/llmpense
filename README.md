@@ -144,8 +144,38 @@ docker compose run --rm migrate src/seed.ts      # demo agency; prints an API ke
 docker compose run --rm migrate src/sync-fx.ts   # fetch ECB exchange rates now
 ```
 
-Put the dashboard and proxy behind a reverse proxy with HTTPS (Caddy, nginx, Traefik) before
-exposing them to the internet.
+### HTTPS
+
+Use HTTPS before exposing the dashboard and proxy to a network you don't trust. Prompts, API keys
+and the session cookie would otherwise travel unencrypted, and phones only install the dashboard
+as an app over HTTPS.
+
+**Private access with [Tailscale](https://tailscale.com)** needs no domain or open ports. On the
+server, with HTTPS certificates enabled for your tailnet:
+
+```bash
+tailscale serve --bg 3000                     # dashboard at https://<machine>.<tailnet>.ts.net
+tailscale serve --bg --https=8443 8787        # proxy on port 8443
+```
+
+**Public access with [Caddy](https://caddyserver.com)** needs a domain pointing at the server and
+ports 80 and 443 open. Caddy gets the certificates by itself:
+
+```
+llmpense.example.com {
+    reverse_proxy localhost:3000
+}
+
+proxy.llmpense.example.com {
+    reverse_proxy localhost:8787
+}
+```
+
+Either way, set `APP_PUBLIC_URL` and `PROXY_PUBLIC_URL` in `.env` to the new addresses so the
+snippets under Settings show them, and then run `docker compose up -d`. Sign-in is limited to 5
+failed attempts per address and 30 overall in 15 minutes, counted from the `X-Forwarded-For` header
+your reverse proxy sets. Over the limit nobody can sign in until the window has passed, but
+sessions already signed in keep working.
 
 ## Development
 
@@ -263,8 +293,9 @@ pnpm fx:sync --feed=history     # everything since 1999, to backfill old months
 ```
 
 The dashboard also fetches the 90-day feed at most once a day when the newest stored rate is
-older than today, waiting at most 1.5 seconds before it uses the stored rates. Set
-`FX_AUTO_FETCH=0` to turn that off; manual rates go under Settings > Exchange rates. The demo
+older than today, waiting at most 1.5 seconds before it uses the stored rates. When you open or
+close a month the feed doesn't reach, it downloads the full history once. Set
+`FX_AUTO_FETCH=0` to turn both off; manual rates go under Settings > Exchange rates. The demo
 seed inserts a few demo rates (labelled as seed data) only when no ECB rates are stored.
 
 ## License
