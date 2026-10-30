@@ -118,6 +118,26 @@ export function rateCutoff(period: string, today: string): string {
   return today < last ? today : last;
 }
 
+/** Days the 90-day ECB feed safely covers. */
+const RECENT_FEED_DAYS = 85;
+/** A stored rate this close before a cutoff means the history around it is loaded (long holidays). */
+const HISTORY_GAP_DAYS = 7;
+
+const daysBefore = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) - n * 86_400_000).toISOString().slice(0, 10);
+
+/** The earliest rate cutoff of `periods` that the 90-day feed doesn't reach, or null. */
+export function oldCutoff(periods: readonly string[], today: string): string | null {
+  const limit = daysBefore(today, RECENT_FEED_DAYS);
+  const old = periods.map((p) => rateCutoff(p, today)).filter((c) => c < limit);
+  return old.length ? old.sort()[0]! : null;
+}
+
+/** Whether the ECB history is needed: no stored ECB rate on or shortly before `cutoff`. */
+export function needsHistoricRates(cutoff: string, storedDates: readonly string[]): boolean {
+  const from = daysBefore(cutoff, HISTORY_GAP_DAYS);
+  return !storedDates.some((d) => d >= from && d <= cutoff);
+}
+
 /**
  * Picks the rate for one currency and month.
  * 1. A manual rate of the org with `effectiveFrom` on or before the cutoff wins (latest first).

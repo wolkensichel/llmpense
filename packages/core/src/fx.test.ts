@@ -6,6 +6,8 @@ import {
   formatRate,
   fromUsd,
   isCurrency,
+  needsHistoricRates,
+  oldCutoff,
   minorUnits,
   periodLastDay,
   rateCutoff,
@@ -170,5 +172,27 @@ describe("rate note", () => {
     expect(rateNote(USD_RATE)).toBeNull();
     expect(rateNote(null)).toBeNull();
     expect(formatRate(1.5)).toBe("1.5000");
+  });
+});
+
+describe("oldCutoff", () => {
+  it("is null when every month is within the 90-day feed", () => {
+    expect(oldCutoff(["2026-09", "2026-10"], "2026-10-30")).toBeNull();
+  });
+
+  it("returns the earliest month end the feed doesn't reach", () => {
+    expect(oldCutoff(["2026-09", "2026-03", "2026-05"], "2026-10-30")).toBe("2026-03-31");
+  });
+});
+
+describe("needsHistoricRates", () => {
+  it("is false with a stored rate on or shortly before the cutoff", () => {
+    expect(needsHistoricRates("2026-03-31", ["2026-03-31"])).toBe(false);
+    expect(needsHistoricRates("2026-04-06", ["2026-03-30"])).toBe(false);
+  });
+
+  it("is true with no rate, or only much older or newer ones", () => {
+    expect(needsHistoricRates("2026-03-31", [])).toBe(true);
+    expect(needsHistoricRates("2026-03-31", ["2026-01-02", "2026-09-01"])).toBe(true);
   });
 });

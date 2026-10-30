@@ -1,15 +1,19 @@
 import "server-only";
-import { fxResolver, latestEcbRateDate, syncEcbRates, utcDay, type FxResolver } from "@llmpense/db";
+import { fxResolver, latestEcbRateDate, loadEurRates, syncEcbRates, utcDay, type FxResolver } from "@llmpense/db";
 import { getDb } from "./db.ts";
 import type { UsdPerUnit } from "./margin.ts";
-import type { Currency } from "@llmpense/core";
+import { ECB_SOURCE, needsHistoricRates, oldCutoff, type Currency } from "@llmpense/core";
 
 /** How long a page waits for the ECB before it renders with the rates already stored. */
 const WAIT_MS = 1_500;
 /** The download itself keeps running in the background up to this limit. */
 const FETCH_TIMEOUT_MS = 10_000;
+/** The full history is a far bigger download. */
+const HISTORY_TIMEOUT_MS = 60_000;
 
-const g = globalThis as unknown as { __llmpenseFx?: { attemptedDay?: string; inflight?: Promise<void> } };
+const g = globalThis as unknown as {
+  __llmpenseFx?: { attemptedDay?: string; inflight?: Promise<void>; historyDay?: string; historyInflight?: Promise<void> };
+};
 
 /** Set FX_AUTO_FETCH=0 to never contact the ECB from the web app (offline installs). */
 export function autoFetchEnabled() {
@@ -45,9 +49,44 @@ export async function ensureFreshRates(now = new Date(), waitMs = WAIT_MS): Prom
   if (state.inflight) await Promise.race([state.inflight, new Promise((r) => setTimeout(r, waitMs))]);
 }
 
+/**
+ * Downloads the full ECB history, at most once a day per server process, when one of `periods` is
+ * older than the 90-day feed and no ECB rate is stored for it. Waits at most `waitMs`.
+ */
+export async function ensureHistoricRates(periods: readonly string[], now = new Date(), waitMs = WAIT_MS): Promise<void> {
+  if (!autoFetchEnabled()) return;
+  const state = (g.__llmpenseFx ??= {});
+  const today = utcDay(now);
+  const cutoff = oldCutoff(periods, today);
+  if (!cutoff) return;
+  if (state.historyDay !== today) {
+    let stored: string[];
+    try {
+      stored = (await loadEurRates(getDb(), [cutoff])).filter((r) => r.source === ECB_SOURCE).map((r) => r.date);
+    } catch {
+      return;
+    }
+    if (!needsHistoricRates(cutoff, stored)) return;
+    if (state.historyDay === today) return;
+    state.historyDay = today;
+    state.historyInflight = syncEcbRates(getDb(), { feed: "history", timeoutMs: HISTORY_TIMEOUT_MS })
+      .then((r) => console.info(`ECB exchange rate history loaded: ${r.received} rates`))
+      .catch((e: Error) => console.warn(`ECB exchange rate history not loaded: ${e.message}`))
+      .finally(() => {
+        state.historyInflight = undefined;
+      });
+  }
+  if (state.historyInflight) await Promise.race([state.historyInflight, new Promise((r) => setTimeout(r, waitMs))]);
+}
+
+/** Bounded attempt to have current rates and, for old months, historic ones. */
+export async function ensureRatesFor(periods: readonly string[], now = new Date(), waitMs = WAIT_MS): Promise<void> {
+  await Promise.all([ensureFreshRates(now, waitMs), ensureHistoricRates(periods, now, waitMs)]);
+}
+
 /** Rates for `periods` from stored data, after a bounded attempt to refresh them. */
 export async function getFx(orgId: string, periods: readonly string[], now = new Date()): Promise<FxResolver> {
-  await ensureFreshRates(now);
+  await ensureRatesFor(periods, now);
   return fxResolver(getDb(), orgId, periods, now);
 }
 
