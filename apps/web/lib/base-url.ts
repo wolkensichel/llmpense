@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 
 /** Where SDKs reach the proxy: PROXY_PUBLIC_URL, else localhost on PROXY_PORT. */
 export function proxyBase(): string {
-  const raw = (process.env.PROXY_PUBLIC_URL ?? `localhost:${process.env.PROXY_PORT ?? 8787}`).replace(/\/+$/, "");
+  const raw = (process.env.PROXY_PUBLIC_URL || `localhost:${process.env.PROXY_PORT || 8787}`).replace(/\/+$/, "");
   return /^https?:\/\//.test(raw) ? raw : `http://${raw}`;
 }
 

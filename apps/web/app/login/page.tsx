@@ -5,7 +5,7 @@ export const metadata: Metadata = { title: "Sign in" };
 export default async function LoginPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;
   const next = typeof sp.next === "string" ? sp.next : "/";
-  const error = sp.error === "1";
+  const error = sp.error === "1" ? "That password is not correct." : sp.error === "2" ? "Too many failed attempts. Try again in 15 minutes." : null;
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-4 py-12">
       <div className="mb-8 flex items-center gap-3">
@@ -31,7 +31,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </label>
         {error && (
           <p id="login-error" role="alert" className="text-sm text-loss-ink">
-            That password is not correct.
+            {error}
           </p>
         )}
         <button className="btn btn-primary w-full">Sign in</button>

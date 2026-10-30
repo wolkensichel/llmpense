@@ -7,7 +7,11 @@ export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   if (!authEnabled()) {
     // No password configured: there is nothing to sign in to.
-    return /^\/login/.test(pathname) ? NextResponse.redirect(new URL("/", request.url), 303) : NextResponse.next();
+    if (!/^\/login/.test(pathname)) return NextResponse.next();
+    const home = request.nextUrl.clone();
+    home.pathname = "/";
+    home.search = "";
+    return NextResponse.redirect(home, 303);
   }
   if (PUBLIC.some((re) => re.test(pathname))) return NextResponse.next();
 
