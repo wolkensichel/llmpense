@@ -185,3 +185,13 @@ export function FrozenNote() {
     </p>
   );
 }
+
+/** Banner for an action that could not finish. */
+export function ActionNotice({ children }: { children: React.ReactNode }) {
+  return (
+    <p role="alert" className="flex items-start gap-2 rounded-lg border border-line bg-loss-soft px-3 py-2.5 text-[13px] text-loss-ink">
+      <TriangleAlert size={16} className="mt-0.5 shrink-0" aria-hidden />
+      <span>{children}</span>
+    </p>
+  );
+}

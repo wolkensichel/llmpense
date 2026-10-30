@@ -10,6 +10,8 @@ import { monthLabel, shortDate, usd } from "@/lib/format.ts";
 import { BillingBadge, EmptyState, LossTag, MarginValue, PageHeader, Panel } from "@/components/ui.tsx";
 import { billedText, CurrencyTag, MonthSwitcher, StatusBadge } from "@/components/statement.tsx";
 import { ConfirmForm } from "@/components/confirm-form.tsx";
+import { ActionNotice } from "@/components/ui.tsx";
+import { statementNotice } from "@/lib/statement-notice.ts";
 import { BulkMark, SelectAllStatements, SelectStatement } from "@/components/bulk-mark.tsx";
 import { exportInvoices } from "@/lib/accounting/export.ts";
 import { accountingSettingsOf, missingForDatev, missingForXero } from "@/lib/accounting/settings.ts";
@@ -50,6 +52,7 @@ export default async function StatementsPage({ searchParams }: { searchParams: S
   const missingDatev = missingForDatev(acct);
   const exportable = exportInvoices(org, all).length;
 
+  const notice = statementNotice(sp);
   const drafts = all.filter((s) => s.status === "draft");
   const ready = drafts.filter((s) => s.data.fx !== null).length;
   const missingRate = drafts.length - ready;
@@ -103,12 +106,14 @@ export default async function StatementsPage({ searchParams }: { searchParams: S
         </div>
       </div>
 
+      {notice && <ActionNotice>{notice}</ActionNotice>}
+
       {closable && missingRate > 0 && (
         <p role="status" className="flex items-start gap-2 rounded-lg border border-line bg-loss-soft px-3 py-2.5 text-[13px] text-loss-ink">
           <TriangleAlert size={16} className="mt-0.5 shrink-0" aria-hidden />
           <span>
             {missingRate === 1 ? "One draft has" : `${missingRate} drafts have`} no exchange rate for {monthLabel(period)} and can&apos;t be closed yet.
-            Run <code>pnpm fx:sync</code> or add a manual rate under Settings &gt; Exchange rates.
+            Add a manual rate under Settings &gt; Exchange rates.
           </span>
         </p>
       )}

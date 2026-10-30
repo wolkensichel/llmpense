@@ -11,9 +11,11 @@ import { dateTime, longDate, monthLabel, pct, usd } from "@/lib/format.ts";
 import { BillingBadge, LossTag, Panel } from "@/components/ui.tsx";
 import { billedText, CurrencyTag, MissingRate, MonthSwitcher, RateLine, StatementLines, StatusBadge } from "@/components/statement.tsx";
 import { ConfirmForm } from "@/components/confirm-form.tsx";
+import { ActionNotice } from "@/components/ui.tsx";
+import { statementNotice } from "@/lib/statement-notice.ts";
 import { closeStatementAction, markStatementAction, reopenStatementAction } from "@/app/(app)/statements/actions.ts";
 
-type Props = { params: Promise<{ id: string; month: string }> };
+type Props = { params: Promise<{ id: string; month: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id, month } = await params;
@@ -22,8 +24,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: s ? `${s.client.name}, ${monthLabel(month)}` : "Statement" };
 }
 
-export default async function StatementPage({ params }: Props) {
+export default async function StatementPage({ params, searchParams }: Props) {
   const { id, month } = await params;
+  const notice = statementNotice(await searchParams);
   const now = new Date();
   const current = periodOf(now);
   if (!parsePeriod(month) || month > current) notFound();
@@ -44,6 +47,7 @@ export default async function StatementPage({ params }: Props) {
 
   return (
     <div className="space-y-5 lg:space-y-6">
+      {notice && <ActionNotice>{notice}</ActionNotice>}
       <div>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Link href={`/clients/${s.client.id}`} className="-ml-2 inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm text-ink-2 hover:text-ink">
