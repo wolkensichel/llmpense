@@ -1,10 +1,11 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { KeyRound } from "lucide-react";
 import { PROVIDERS } from "@llmpense/core";
 import { CopyButton } from "@/components/copy-button.tsx";
-import { addPrice, createApiKey } from "./actions.ts";
+import { createApiKey, savePrice } from "./actions.ts";
 
 export function KeyForm({
   clients,
@@ -77,8 +78,24 @@ export function KeyForm({
   );
 }
 
-export function PriceForm() {
-  const [state, action, pending] = useActionState(addPrice, undefined);
+export type EditablePrice = {
+  id: string;
+  orgId: string | null;
+  provider: string;
+  model: string;
+  inputPerMTok: string;
+  outputPerMTok: string;
+  cacheReadPerMTok: string | null;
+  cacheWritePerMTok: string | null;
+  effectiveFrom: Date;
+  note: string | null;
+};
+
+const rateValue = (v: string | null | undefined) => (v == null ? undefined : Number(v));
+
+/** Adds a price; with `editing` it changes that row instead. */
+export function PriceForm({ editing }: { editing?: EditablePrice }) {
+  const [state, action, pending] = useActionState(savePrice, undefined);
   const ref = useRef<HTMLFormElement>(null);
   useEffect(() => {
     if (state?.ok) ref.current?.reset();
@@ -86,17 +103,19 @@ export function PriceForm() {
   const today = new Date().toISOString().slice(0, 10);
   return (
     <form ref={ref} action={action} className="space-y-3">
+      {editing && <input type="hidden" name="id" value={editing.id} />}
+      {editing && <p className="text-sm font-medium">Editing the price for {editing.model}. Requests already recorded keep their cost.</p>}
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="block">
           <span className="mb-1.5 block text-sm font-medium">Applies to</span>
-          <select name="scope" className="field" defaultValue="org">
+          <select name="scope" className="field" defaultValue={editing && !editing.orgId ? "global" : "org"}>
             <option value="org">This agency (negotiated rate)</option>
             <option value="global">Everyone on this server</option>
           </select>
         </label>
         <label className="block">
           <span className="mb-1.5 block text-sm font-medium">Provider</span>
-          <select name="provider" className="field" defaultValue="openai">
+          <select name="provider" className="field" defaultValue={editing?.provider ?? "openai"}>
             {PROVIDERS.map((p) => (
               <option key={p} value={p}>
                 {p}
@@ -106,32 +125,37 @@ export function PriceForm() {
         </label>
         <label className="block">
           <span className="mb-1.5 block text-sm font-medium">Model</span>
-          <input name="model" required className="field" placeholder="gpt-5-mini" />
+          <input name="model" required className="field" placeholder="gpt-5-mini" defaultValue={editing?.model} />
         </label>
       </div>
       <fieldset>
         <legend className="mb-1.5 text-sm font-medium">USD per million tokens</legend>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <RateInput name="inputPerMTok" label="Input" required />
-          <RateInput name="outputPerMTok" label="Output" required />
-          <RateInput name="cacheReadPerMTok" label="Cache read" />
-          <RateInput name="cacheWritePerMTok" label="Cache write" />
+          <RateInput name="inputPerMTok" label="Input" required value={rateValue(editing?.inputPerMTok)} />
+          <RateInput name="outputPerMTok" label="Output" required value={rateValue(editing?.outputPerMTok)} />
+          <RateInput name="cacheReadPerMTok" label="Cache read" value={rateValue(editing?.cacheReadPerMTok)} />
+          <RateInput name="cacheWritePerMTok" label="Cache write" value={rateValue(editing?.cacheWritePerMTok)} />
         </div>
       </fieldset>
       <div className="grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)]">
         <label className="block">
           <span className="mb-1.5 block text-sm font-medium">Effective from</span>
-          <input name="effectiveFrom" type="date" required defaultValue={today} className="field num" />
+          <input name="effectiveFrom" type="date" required defaultValue={editing ? editing.effectiveFrom.toISOString().slice(0, 10) : today} className="field num" />
         </label>
         <label className="block">
           <span className="mb-1.5 block text-sm font-medium">Note</span>
-          <input name="note" maxLength={500} className="field" placeholder="Enterprise discount, contract 2026-Q4" />
+          <input name="note" maxLength={500} className="field" placeholder="Enterprise discount, contract 2026-Q4" defaultValue={editing?.note ?? undefined} />
         </label>
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <button className="btn btn-primary" disabled={pending}>
-          {pending ? "Saving…" : "Add price"}
+          {pending ? "Saving…" : editing ? "Save changes" : "Add price"}
         </button>
+        {editing && (
+          <Link href="/settings#prices" className="btn btn-quiet">
+            Cancel
+          </Link>
+        )}
         <p role="status" className={`text-sm ${state?.error ? "text-loss-ink" : "text-profit-ink"}`}>
           {state?.error ?? state?.ok}
         </p>
@@ -140,14 +164,14 @@ export function PriceForm() {
   );
 }
 
-function RateInput({ name, label, required = false }: { name: string; label: string; required?: boolean }) {
+function RateInput({ name, label, required = false, value }: { name: string; label: string; required?: boolean; value?: number }) {
   return (
     <label className="block">
       <span className="mb-1 block text-[13px] text-ink-2">
         {label}
         {!required && <span className="text-ink-3"> (optional)</span>}
       </span>
-      <input name={name} type="number" inputMode="decimal" min={0} step="any" required={required} className="field num" />
+      <input name={name} type="number" inputMode="decimal" min={0} step="any" required={required} defaultValue={value} className="field num" />
     </label>
   );
 }

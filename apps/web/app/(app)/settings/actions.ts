@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, isNull } from "drizzle-orm";
+import { redirect } from "next/navigation";
+import { and, eq, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import { PROVIDERS } from "@llmpense/core";
 import { apiKeys, clients, generateApiKey, invalidatePriceCache, modelPrices, projects } from "@llmpense/db";
@@ -79,8 +80,14 @@ const priceSchema = z.object({
   note: z.string().max(500).optional(),
 });
 
-export async function addPrice(_prev: PriceState, form: FormData): Promise<PriceState> {
+/** A row of this org or a server-wide one. */
+const ownPrice = (id: string, orgId: string) => and(eq(modelPrices.id, id), or(eq(modelPrices.orgId, orgId), isNull(modelPrices.orgId)));
+
+/** Adds a price, or updates the row given by the form's `id`. */
+export async function savePrice(_prev: PriceState, form: FormData): Promise<PriceState> {
   const org = await requireAdmin();
+  const id = z.string().uuid().optional().safeParse(blank(form.get("id")));
+  if (!id.success) return { error: "This price no longer exists." };
   const parsed = priceSchema.safeParse({
     scope: form.get("scope"),
     provider: form.get("provider"),
@@ -94,7 +101,7 @@ export async function addPrice(_prev: PriceState, form: FormData): Promise<Price
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form." };
   const v = parsed.data;
-  await getDb().insert(modelPrices).values({
+  const values = {
     orgId: v.scope === "org" ? org.id : null,
     provider: v.provider,
     model: v.model,
@@ -104,8 +111,24 @@ export async function addPrice(_prev: PriceState, form: FormData): Promise<Price
     cacheWritePerMTok: v.cacheWritePerMTok === undefined ? null : String(v.cacheWritePerMTok),
     effectiveFrom: v.effectiveFrom,
     note: v.note ?? null,
-  });
+  };
+  if (id.data) {
+    const rows = await getDb().update(modelPrices).set(values).where(ownPrice(id.data, org.id)).returning({ id: modelPrices.id });
+    if (rows.length === 0) return { error: "This price no longer exists." };
+    invalidatePriceCache();
+    revalidatePath("/settings");
+    redirect("/settings#prices");
+  }
+  await getDb().insert(modelPrices).values(values);
   invalidatePriceCache();
   revalidatePath("/settings");
   return { ok: `Price saved for ${v.model}. It applies to requests recorded from now on.` };
+}
+
+export async function deletePrice(form: FormData) {
+  const org = await requireAdmin();
+  const id = z.string().uuid().parse(form.get("id"));
+  await getDb().delete(modelPrices).where(ownPrice(id, org.id));
+  invalidatePriceCache();
+  revalidatePath("/settings");
 }

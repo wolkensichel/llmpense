@@ -7,7 +7,8 @@ import { listApiKeys, listClients, listPriceOverrides, listProjects } from "@/li
 import { dateTime } from "@/lib/format.ts";
 import { CodeBlock } from "@/components/copy-button.tsx";
 import { EmptyState, PageHeader, Panel } from "@/components/ui.tsx";
-import { revokeApiKey } from "./actions.ts";
+import { ConfirmForm } from "@/components/confirm-form.tsx";
+import { deletePrice, revokeApiKey } from "./actions.ts";
 import { KeyForm, PriceForm } from "./forms.tsx";
 import { IntegrationsSection } from "./integrations.tsx";
 import { BrandingSettings } from "./branding.tsx";
@@ -18,7 +19,27 @@ export const metadata: Metadata = { title: "Settings" };
 
 const rate = (v: string | null) => (v === null ? "–" : `$${Number(v)}`);
 
-export default async function SettingsPage() {
+function PriceActions({ id, model }: { id: string; model: string }) {
+  return (
+    <div className="mt-2 flex items-center gap-2 lg:mt-0 lg:justify-end">
+      <Link href={`/settings?editPrice=${id}#prices`} className="btn btn-quiet">
+        Edit
+      </Link>
+      <ConfirmForm
+        action={deletePrice}
+        fields={{ id }}
+        variant="quiet"
+        label="Delete"
+        title={`Delete the price for ${model}?`}
+        body="New requests use the next matching price. Requests already recorded keep their cost."
+        confirmLabel="Delete price"
+      />
+    </div>
+  );
+}
+
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = await searchParams;
   const org = await getCurrentOrg();
   const [keys, clients, projects, prices, app] = await Promise.all([
     listApiKeys(org.id),
@@ -27,6 +48,7 @@ export default async function SettingsPage() {
     listPriceOverrides(org.id),
     appBase(),
   ]);
+  const editing = prices.find((p) => p.id === sp.editPrice);
   const proxy = proxyBase();
   const exampleClient = clients[0]?.slug ?? "acme-retail";
 
@@ -171,7 +193,7 @@ const anthropic = new Anthropic({
           title="Price overrides"
           sub="LLMpense ships with list prices. Add a row for a negotiated discount or a model it doesn't know yet. Agency rows win over server-wide rows; the latest effective date wins."
         >
-          <PriceForm />
+          <PriceForm key={editing?.id ?? "new"} editing={editing} />
           <div className="mt-5 border-t border-line pt-4">
             {prices.length === 0 ? (
               <EmptyState title="No overrides">All costs use the bundled list prices.</EmptyState>
@@ -191,6 +213,7 @@ const anthropic = new Anthropic({
                         {p.orgId ? "This agency" : "Server-wide"}, from {p.effectiveFrom.toISOString().slice(0, 10)}
                         {p.note ? `. ${p.note}` : ""}
                       </p>
+                      <PriceActions id={p.id} model={p.model} />
                     </li>
                   ))}
                 </ul>
@@ -206,7 +229,10 @@ const anthropic = new Anthropic({
                         <th className="r">Cache read</th>
                         <th className="r">Cache write</th>
                         <th>From</th>
-                        <th className="pr-5">Note</th>
+                        <th>Note</th>
+                        <th className="pr-5">
+                          <span className="sr-only">Actions</span>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -220,7 +246,10 @@ const anthropic = new Anthropic({
                           <td className="r">{rate(p.cacheReadPerMTok)}</td>
                           <td className="r">{rate(p.cacheWritePerMTok)}</td>
                           <td className="num">{p.effectiveFrom.toISOString().slice(0, 10)}</td>
-                          <td className="pr-5 text-ink-2">{p.note ?? "–"}</td>
+                          <td className="text-ink-2">{p.note ?? "–"}</td>
+                          <td className="pr-5">
+                            <PriceActions id={p.id} model={p.model} />
+                          </td>
                         </tr>
                       ))}
                     </tbody>
